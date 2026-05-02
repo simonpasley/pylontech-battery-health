@@ -40,11 +40,11 @@ It does this by using the Pylontech BMS's own native console interface — the s
 
 ## Screenshots
 
-> **Add screenshots here.** Suggested:
-> - `docs/screenshots/rack-overview.png` — the rack table with green / amber / red spread colour coding visible
-> - `docs/screenshots/verdict-failed.png` — a FAILED verdict card with the reasoning panel
->
-> You can drop PNGs into `docs/screenshots/` and reference them with standard Markdown image syntax. A picture of the rack overview does more for first-impression trust than any amount of feature-list copy.
+<p align="center">
+  <img src="docs/screenshots/rack-overview-mobile.png" alt="Rack overview on mobile — 10 packs online, rack discharging at 1.35 kW" width="320">
+</p>
+
+*Tool running on a Raspberry Pi (always-on diagnostic node), viewed from a phone over the LAN. 10-pack rack online, discharging at 1.35 kW.*
 
 A redacted **sample warranty report** is at [`docs/SAMPLE-REPORT.md`](docs/SAMPLE-REPORT.md) so you can see the format before installing.
 
