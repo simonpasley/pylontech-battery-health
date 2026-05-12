@@ -2,6 +2,7 @@
 
 import glob
 import logging
+import re
 import threading
 import time
 
@@ -94,7 +95,9 @@ class ConnectionManager:
                         desc = 'USB Serial'
                     found.append({'port': port_path, 'description': desc})
 
-        # Also try pyserial's port listing as fallback
+        # Also try pyserial's port listing as fallback. On Windows the glob
+        # patterns above never match (COM ports aren't filesystem paths), so
+        # this fallback is the only port-discovery path for Windows users.
         if not found:
             try:
                 from serial.tools import list_ports
@@ -105,7 +108,9 @@ class ConnectionManager:
                 )
                 for port_info in list_ports.comports():
                     port_path = port_info.device
-                    if port_path.startswith(accepted_prefixes):
+                    if (port_path.startswith(accepted_prefixes)
+                            or re.fullmatch(r'COM\d+', port_path, re.IGNORECASE)
+                            or re.fullmatch(r'\\\\\.\\COM\d+', port_path, re.IGNORECASE)):
                         if port_path not in seen:
                             seen.add(port_path)
                             desc = port_info.description or 'Serial Port'
