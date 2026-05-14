@@ -20,6 +20,12 @@ jobs:
   build:
     runs-on: windows-latest
 
+    # contents: write is required by softprops/action-gh-release@v2 to
+    # create the GitHub Release and attach the .exe asset. The default
+    # GITHUB_TOKEN scope is read-only on contents.
+    permissions:
+      contents: write
+
     steps:
       - name: Check out source
         uses: actions/checkout@v4
