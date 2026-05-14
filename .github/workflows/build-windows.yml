@@ -1,0 +1,76 @@
+name: Build Windows executable
+
+# Builds a single-file Windows .exe of the Flask app via PyInstaller so
+# non-technical users can download from the Releases page and double-click,
+# rather than installing Python + git themselves.
+#
+# Triggers:
+#   - workflow_dispatch — manual run from the Actions tab (use this to test
+#     the build before tagging a release)
+#   - push of a tag matching v*  — also attaches the exe to the GitHub
+#     Release that the tag creates
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install runtime + build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "pyinstaller==6.11.1"
+
+      - name: Build single-file exe with PyInstaller
+        run: |
+          pyinstaller --onefile --name pylontech-health `
+            --add-data "templates;templates" `
+            --add-data "static;static" `
+            --collect-submodules serial `
+            --noconfirm `
+            app.py
+
+      - name: Smoke-test the exe imports without crashing
+        # Launch the exe, give Flask 4 s to bind to :8080, hit /api/status,
+        # then kill it. If it exits non-zero or doesn't respond, the build
+        # is broken and we want CI to fail loudly rather than ship junk.
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath ".\dist\pylontech-health.exe" -PassThru
+          Start-Sleep -Seconds 4
+          try {
+            $r = Invoke-WebRequest -Uri http://localhost:8080/api/status -TimeoutSec 5
+            if ($r.StatusCode -ne 200) { throw "Status endpoint returned $($r.StatusCode)" }
+            Write-Host "Smoke test OK: $($r.Content)"
+          } finally {
+            Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload exe as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylontech-health-windows
+          path: dist/pylontech-health.exe
+          if-no-files-found: error
+
+      - name: Attach exe to GitHub Release (tag push only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/pylontech-health.exe
+          fail_on_unmatched_files: true
