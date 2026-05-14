@@ -10,9 +10,11 @@ Plug your USB-RS232 console cable into the master pack's RJ45 console port
 """
 
 import logging
+import sys
 import threading
 import time
 import uuid
+import webbrowser
 from dataclasses import asdict
 from datetime import date, datetime
 from typing import Optional
@@ -738,4 +740,13 @@ def _markdown_to_html(md: str) -> str:
 if __name__ == '__main__':
     logger.info('Pylontech Battery Health Check')
     logger.info('Open http://localhost:8080 in your browser')
+    # When running as a PyInstaller-packaged exe (sys.frozen is set), open
+    # the browser automatically so the user doesn't have to know to type
+    # localhost:8080. We do NOT do this when run from a terminal, so headless
+    # Pi / SSH deployments aren't disturbed.
+    if getattr(sys, 'frozen', False):
+        def _open_browser():
+            time.sleep(1.5)
+            webbrowser.open('http://localhost:8080')
+        threading.Thread(target=_open_browser, daemon=True).start()
     app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)

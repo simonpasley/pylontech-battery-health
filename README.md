@@ -123,6 +123,17 @@ For more detail on cable, ports, and master vs slave, see [`docs/HARDWARE-SETUP.
 
 ## Install
 
+### Windows — download the .exe (no Python, no git required)
+
+1. Go to the [Releases page](https://github.com/simonpasley/pylontech-battery-health/releases/latest) and download `pylontech-health.exe`.
+2. Double-click it.
+3. **Windows will show "Windows protected your PC — Unknown publisher".** This is expected: the build is not code-signed (signing certs cost £200+/year and this is a free tool). Click **More info** → **Run anyway**. The app is open source — you can read every line at this repo before trusting the binary.
+4. Your browser opens automatically at http://localhost:8080. Plug the cable in and click **Connect to battery**.
+
+To stop the app, close the small command-prompt window that opened alongside it.
+
+### Mac / Linux / Windows from source
+
 ```bash
 git clone https://github.com/simonpasley/pylontech-battery-health.git
 cd pylontech-battery-health
