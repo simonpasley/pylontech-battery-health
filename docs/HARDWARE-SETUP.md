@@ -18,6 +18,7 @@ You need a USB-to-RS232 cable terminating in an **RJ45 (8P8C)** connector wired 
 | Chipset | FTDI **FT231XS** |
 | Connectors | USB-A to RJ45 8P8C |
 | Length | 6 ft / 180 cm |
+| Example listing | [amzn.eu/d/02uypFNx](https://amzn.eu/d/02uypFNx) — verify the chipset before buying; Amazon listings change |
 
 Other Pylontech-pinout cables work — anything sold as a "Pylontech BMS console cable" with an FTDI / CH340 / CP210x chipset.
 
