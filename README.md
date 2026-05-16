@@ -2,6 +2,16 @@
 
 A simple, cross-platform tool that reads every cell in your Pylontech battery rack and tells you which packs are healthy, which are degrading and which are failing — in plain English, with no battery expertise required.
 
+## ⬇ Download
+
+### → [**Windows: download `pylontech-health.exe`**](https://github.com/simonpasley/pylontech-battery-health/releases/latest) ←
+
+No Python, no git, no setup. Download, double-click, your browser opens with a full health report. On first run Windows shows **"Windows protected your PC — Unknown publisher"** → click **More info → Run anyway**. It's unsigned only because this is a free tool — the entire source is on this page, read it before you trust the binary.
+
+**Mac / Linux:** runs from source in two commands — see [Install](#install) below.
+
+---
+
 > **Free for personal and professional use** (including paid service-calls). You may not resell it, sublicense it, or bundle it into a paid product. Full terms in [LICENSE](LICENSE).
 
 > **Disclaimer — please read first**
