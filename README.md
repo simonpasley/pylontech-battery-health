@@ -10,6 +10,8 @@ No Python, no git, no setup. Download, double-click, your browser opens with a f
 
 **Mac / Linux:** runs from source in two commands — see [Install](#install) below.
 
+*Found this useful? A GitHub ⭐ (top-right of this page) helps other Pylontech owners find it — that's the only thanks this tool asks for.*
+
 ---
 
 > **Free for personal and professional use** (including paid service-calls). You may not resell it, sublicense it, or bundle it into a paid product. Full terms in [LICENSE](LICENSE).
