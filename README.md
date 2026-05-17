@@ -103,7 +103,7 @@ The tool is a small local web app written in Python. It runs on your own compute
 
 A USB-to-RS232 cable terminating in an **RJ45 (8P8C)** connector with the Pylontech console pinout.
 
-**Verified working** — `uamdoen` US2000C / US3000C / US5000 Lithium Battery BMS Console Communication Cable (FTDI **FT231XS** chipset, 6 ft / 180 cm, USB-A to RJ45 8P8C). [Example listing](https://amzn.eu/d/02uypFNx) — Amazon listings change often, so confirm the chipset is FTDI / CH340 / CP210x and the connector is RJ45 8P8C before buying. Other cables sold as "Pylontech BMS console cable" with an FTDI / CH340 / CP210x chipset should also work.
+**Verified working** — **Suamdoen** "US2000C US3000C US5000 Lithium Battery BMS Console Communication Cable" — FTDI **FT231XS**, USB-RS232 to RJ45 8P8C serial debug cable, 6 ft / 180 cm. [Example listing](https://amzn.eu/d/0cocBT7W) — Amazon listings change often, so confirm the chipset is FTDI / CH340 / CP210x and the connector is RJ45 8P8C before buying. Other cables sold as "Pylontech BMS console cable" with an FTDI / CH340 / CP210x chipset should also work.
 
 ### A computer
 
