@@ -15,7 +15,7 @@
 >
 > The data below was read directly from the battery's own BMS via its native console interface. No values have been altered. The verdict is computed against published cell-imbalance and SOH thresholds.
 >
-> **The author of this tool accepts zero liability** for any decision, action, warranty outcome or damage arising from use of this report. Treat it as supporting evidence only — Pylontech's own assessment of any returned unit is authoritative.
+> This is a **health check**, not an official assessment. **The author of this tool accepts zero liability** for any decision, action or outcome arising from use of this report. If a pack looks faulty, your installer or Pylontech are the right people to advise on next steps.
 
 ---
 
@@ -63,7 +63,7 @@
 |---|---|---|
 | BMS-reported SOH | **XX %** | 0 % = pack declared end-of-life by its own BMS |
 | SOH-abnormal events accumulated | XXX | progressive degradation indicator |
-| **Real charge cycles** | **XXX** | the warranty-relevant cycle metric (`CYCLE Times`) |
+| **Real charge cycles** | **XXX** | the meaningful real-cycle metric (`CYCLE Times`) |
 | Charge transitions | XXXX | NOT real cycles — partial-event counter (`Charge Times`) |
 | Cell over-voltage trips (BOV) | X | |
 | Cell low-voltage warnings (BLV) | XX | |
@@ -81,7 +81,7 @@
 
 ### Raw BMS captures
 
-Raw command output, suitable for warranty submission as supporting evidence:
+Raw command output, straight from the BMS, for full traceability:
 
 #### `info`
 
@@ -106,7 +106,7 @@ Command completed successfully
 $$
 ```
 
-*(further raw captures truncated for sample — real reports include verbatim `pwr`, `bat`, `soh`, `stat` and `data event` output for full warranty traceability)*
+*(further raw captures truncated for sample — real reports include verbatim `pwr`, `bat`, `soh`, `stat` and `data event` output for full traceability)*
 
 ---
 

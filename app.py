@@ -1,9 +1,9 @@
 """Pylontech Battery Health Check — Flask web app.
 
-A focused tool for diagnosing failed Pylontech battery packs and producing
-warranty-claim ready reports. Console mode only — that is the only mode
-that exposes the per-cell SOH counters, real cycle count, and event log
-that a Pylontech warranty claim requires.
+A focused tool for checking the health of Pylontech battery packs and
+producing clear, plain-English reports. Console mode only — that is the
+only mode that exposes the per-cell SOH counters, real cycle count, and
+event log that a thorough health check needs.
 
 Plug your USB-RS232 console cable into the master pack's RJ45 console port
 (NOT the CAN port) to get the whole-rack view.

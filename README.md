@@ -30,9 +30,9 @@ No Python, no git, no setup. Download, double-click, your browser opens with a f
 
 If you've tried to check a Pylontech US3000C, US5000 or similar rack with the official **BatteryView** software and hit Windows-only requirements, missing-USB-driver errors, missing serial-number reporting, or just wanted a clean report you can attach to an email — this is the cross-platform alternative.
 
-It runs locally on **Mac, Windows or Linux**, reads the same console-mode BMS data BatteryView reads (cell voltages, **state of health (SOH)**, real cycle count, event log, per-cell SOH-abnormal counters), and produces a **warranty-claim ready report** in Markdown or PDF. The verdict engine is built around the cell-voltage spread / cell-imbalance signature that distinguishes a healthy LFP pack from a failing one.
+It runs locally on **Mac, Windows or Linux**, reads the same console-mode BMS data BatteryView reads (cell voltages, **state of health (SOH)**, real cycle count, event log, per-cell SOH-abnormal counters), and produces a **clear, plain-English health report** in Markdown or PDF. The verdict engine is built around the cell-voltage spread / cell-imbalance signature that distinguishes a healthy LFP pack from a degrading one.
 
-Search terms this project covers: *Pylontech BatteryView alternative, Pylontech US3000C / US5000 SOH check, Pylontech cell voltage imbalance, Pylontech warranty claim report, Pylontech battery health check, RS232 console diagnostic for Pylontech.*
+Search terms this project covers: *Pylontech BatteryView alternative, Pylontech US3000C / US5000 SOH check, Pylontech cell voltage imbalance, Pylontech battery health check, Pylontech cell health diagnostic, RS232 console diagnostic for Pylontech.*
 
 ---
 
@@ -42,7 +42,7 @@ Search terms this project covers: *Pylontech BatteryView alternative, Pylontech 
 - Shows you the **cell-voltage spread** at a glance — colour-coded green / amber / red
 - Identifies the **weakest cell** automatically (when the spread is meaningful)
 - Reports the **BMS-calculated State of Health**, real cycle count, and per-cell SOH-abnormal counters
-- Generates a **clean one-click warranty report** (Markdown + browser PDF) you can save, share with your installer, or attach to a service request
+- Generates a **clean one-click health report** (Markdown + browser PDF) you can save for your records or share with your installer
 - Captures the **full event log** straight off the BMS for closer inspection
 - **Whole-rack scan** — plug into the master and let it diagnose every pack with a progress bar
 
@@ -58,7 +58,7 @@ It does this by using the Pylontech BMS's own native console interface — the s
 
 *Tool running on a Raspberry Pi (always-on diagnostic node), viewed from a phone over the LAN. 10-pack rack online, discharging at 1.35 kW.*
 
-A redacted **sample warranty report** is at [`docs/SAMPLE-REPORT.md`](docs/SAMPLE-REPORT.md) so you can see the format before installing.
+A redacted **sample health report** is at [`docs/SAMPLE-REPORT.md`](docs/SAMPLE-REPORT.md) so you can see the format before installing.
 
 ---
 
@@ -222,7 +222,7 @@ After connecting, the tool automatically pulls the rack-wide table from the mast
 
 ### 3. Whole-rack scan
 
-Click **"⚡ Scan whole rack & build full report"** to run a full diagnostic on every online pack and produce a single combined report. Takes about a minute for a typical 8-pack rack. When packs come back FAILED or DEGRADING, the tool surfaces a checklist of follow-up steps (plug into that pack, dump its event log) **above** the download button — so you don't email an incomplete RMA bundle to the Pylontech service team.
+Click **"⚡ Scan whole rack & build full report"** to run a full diagnostic on every online pack and produce a single combined report. Takes about a minute for a typical 8-pack rack. When packs come back FAILED or DEGRADING, the tool surfaces a checklist of follow-up steps (plug into that pack, dump its event log) **above** the download button — so you have the complete picture for that pack before deciding what to do next.
 
 ### 4. Per-pack diagnostic
 
@@ -247,7 +247,7 @@ For each suspect pack, plug the cable directly into **that pack's** console port
 There's also a slower **"Dump full event history"** that walks every stored item with per-cell readings — much more detail, takes a few minutes.
 
 For more on what the numbers actually mean, see [`docs/INTERPRETATION.md`](docs/INTERPRETATION.md).
-For warranty / RMA workflow notes, see [`docs/WARRANTY-WORKFLOW.md`](docs/WARRANTY-WORKFLOW.md).
+For how to read a result and sensible next steps, see [`docs/UNDERSTANDING-RESULTS.md`](docs/UNDERSTANDING-RESULTS.md).
 
 ---
 
@@ -256,7 +256,7 @@ For warranty / RMA workflow notes, see [`docs/WARRANTY-WORKFLOW.md`](docs/WARRAN
 - Modify any battery setting, parameter, or firmware
 - Replace official Pylontech BatteryView software for vendor RMA workflows that require it specifically (some Pylontech service teams expect BatteryView's exact export format — ask your distributor first)
 - Diagnose physical issues like swelling, leaking electrolyte, corroded contacts, or thermal damage — always inspect the pack physically as well
-- Cover packs that are out of warranty — those become a question for [ServTec UK](https://servtec.co.uk/) or another paid Pylontech repair service
+- Tell you whether a pack is in or out of warranty, or make any claim on your behalf — it just shows you the battery's own data. **If a pack looks faulty, your installer or Pylontech are the right people to advise on next steps.** Out-of-warranty repair is a separate paid service (e.g. [ServTec UK](https://servtec.co.uk/))
 - Connect over CAN, network, or wireless — console mode only, by design
 
 ---
@@ -288,8 +288,8 @@ pylontech-battery-health/
 ├── docs/
 │   ├── HARDWARE-SETUP.md       Cable, ports, master vs slave, troubleshooting
 │   ├── INTERPRETATION.md       Every metric + thresholds + failure signatures
-│   ├── WARRANTY-WORKFLOW.md    Diagnostic → form → RMA, scope notes
-│   └── SAMPLE-REPORT.md        Redacted example warranty report
+│   ├── UNDERSTANDING-RESULTS.md  What a result means + sensible next steps
+│   └── SAMPLE-REPORT.md        Redacted example health report
 ├── .github/ISSUE_TEMPLATE/
 │   └── bug_report.md           Pre-filled bug-report template
 ├── requirements.txt
@@ -320,7 +320,7 @@ PRs particularly welcome for:
 
 ## Credits
 
-Originally built by [Brunswick Electrical Services Ltd](https://bre-services.com) (Ipswich, UK) — out of the need for a quick, reliable way to check Pylontech battery health when the official BatteryView software was awkward or unavailable, and to document failures in clear plain-English reports.
+Originally built by [Brunswick Electrical Services Ltd](https://bre-services.com) (Ipswich, UK) — out of the need for a quick, reliable way to check Pylontech battery health when the official BatteryView software was awkward or unavailable, and to make the BMS's own data readable in plain English.
 
 Pylontech, US3000C, US5000 and BatteryView are trademarks of Pylontech Technology Co. Ltd. This project is not affiliated with Pylontech.
 

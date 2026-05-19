@@ -2,7 +2,7 @@
 
 What every metric means, what's normal, and what flags a failure.
 
-> **Disclaimer**: This guide is offered as informational context only. It is not authoritative — Pylontech's own assessment of a returned unit is the binding word. The author accepts zero liability for any decision made from this guide. See the project [LICENSE](../LICENSE).
+> **Disclaimer**: This guide is offered as informational context only — a health-check aid, not an official assessment. The author accepts zero liability for any decision made from this guide. If a pack looks faulty, your installer or Pylontech are the right people to advise. See the project [LICENSE](../LICENSE).
 
 ---
 
@@ -35,7 +35,7 @@ The Pylontech BMS computes its own State of Health internally and exposes it via
 | 99–100 | Normal |
 | 70–98 | Degraded but functional |
 | 1–69 | Significant capacity loss |
-| **0** | **The BMS has declared the pack end-of-life. This is the strongest single warranty trigger.** |
+| **0** | **The BMS has declared the pack end-of-life — the strongest single end-of-life signal.** |
 
 The toolkit treats `SOH = 0` as forcing a FAILED verdict regardless of any other metric, because the BMS itself has spoken.
 
@@ -73,8 +73,8 @@ The `stat` command exposes two cycle-related numbers and they are **not** the sa
 
 | Field | What it actually counts |
 |---|---|
-| **`CYCLE Times`** | True full-equivalent charge cycles. **This is the warranty-relevant cycle metric.** |
-| `Charge Times` | A transition counter (BMS state changes that include charge events). Often an order of magnitude higher than the real cycle count. **NOT a real cycle count — do not quote this in warranty discussions.** |
+| **`CYCLE Times`** | True full-equivalent charge cycles. **This is the meaningful real-cycle metric.** |
+| `Charge Times` | A transition counter (BMS state changes that include charge events). Often an order of magnitude higher than the real cycle count. **NOT a real cycle count — don't mistake it for one.** |
 
 A US3000C is rated for **6 000+ cycles** to 80 % capacity under nominal conditions. A pack failing at < 1 000 real cycles is failing well short of rated life.
 
@@ -109,7 +109,7 @@ This is why looking at voltage spread alone is not sufficient — a pack can hav
 | `Shut Times` | Pack shutdowns | High counts → BMS frequently throwing in the towel |
 | `Reset Times` | BMS resets | High counts → instability |
 
-For warranty purposes, **abuse indicators (COC, DOC, SC) being all 0** is good news — it shows the pack was not over-stressed. Voltage-only trips (OV, HV, LV, UV) are not abuse, they are the BMS protecting itself from imbalanced cells.
+For a health assessment, **abuse indicators (COC, DOC, SC) being all 0** is good news — it shows the pack was not over-stressed. Voltage-only trips (OV, HV, LV, UV) are not abuse, they are the BMS protecting itself from imbalanced cells.
 
 ---
 
@@ -131,8 +131,8 @@ For warranty purposes, **abuse indicators (COC, DOC, SC) being all 0** is good n
 
 ### A failing pack typically has both
 
-Most failing Pylontech packs we've examined have at least one cell of each type — a high-IR cell pinching the bottom of the curve and a capacity-loss cell pinching the top. Hence the toolkit checks both `bat` and `data event` and includes both in the warranty report.
+Most failing Pylontech packs we've examined have at least one cell of each type — a high-IR cell pinching the bottom of the curve and a capacity-loss cell pinching the top. Hence the toolkit checks both `bat` and `data event` and includes both in the health report.
 
 ### Batch defects
 
-When you see multiple packs from the same production batch (sequential serial numbers, identical release date) showing the same failure mode in the same rack, that is a strong signal of a manufacturing batch issue rather than independent end-of-life. Pylontech RMA teams take this seriously — note the pattern when raising your claim.
+When you see multiple packs from the same production batch (sequential serial numbers, identical release date) showing the same failure mode in the same rack, that is a strong signal of a batch issue rather than independent end-of-life. Worth noting that pattern if you discuss the rack with your installer or Pylontech.

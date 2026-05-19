@@ -20,7 +20,7 @@ DISCLAIMER_LINES = [
     ">",
     "> The data below was read directly from the battery's own BMS via its native console interface. No values have been altered. The verdict is computed against published cell-imbalance and SOH thresholds.",
     ">",
-    "> **The author of this tool accepts zero liability** for any decision, action, warranty outcome or damage arising from use of this report. Treat it as supporting evidence only — Pylontech's own assessment of any returned unit is authoritative.",
+    "> This is a **health check**, not an official assessment. **The author of this tool accepts zero liability** for any decision, action or outcome arising from use of this report. If a pack looks faulty, your installer or Pylontech are the right people to advise on next steps.",
 ]
 
 
@@ -116,7 +116,7 @@ def _pack_section(diag: PackDiagnosis, heading_level: int = 1) -> list[str]:
             "|---|---|---|",
             f"| BMS-reported SOH | **{'--' if diag.stats.soh_percent is None else f'{diag.stats.soh_percent} %'}** | 0 % = pack declared end-of-life by its own BMS |",
             f"| SOH-abnormal events accumulated | {diag.stats.soh_abnormal_events} | progressive degradation indicator |",
-            f"| **Real charge cycles** | **{diag.stats.real_cycles}** | the warranty-relevant cycle metric (`CYCLE Times`) |",
+            f"| **Real charge cycles** | **{diag.stats.real_cycles}** | the meaningful real-cycle metric (`CYCLE Times`) |",
             f"| Charge transitions | {diag.stats.charge_transitions} | NOT real cycles — partial-event counter (`Charge Times`) |",
             f"| Discharge events | {diag.stats.discharge_count} | |",
             f"| Cell over-voltage trips (BOV) | {diag.stats.bat_ov_count} | |",
@@ -147,7 +147,7 @@ def _pack_section(diag: PackDiagnosis, heading_level: int = 1) -> list[str]:
         "",
         f"{h}# Raw BMS captures",
         "",
-        "Raw command output, suitable for warranty submission as supporting evidence:",
+        "Raw command output, straight from the BMS, for full traceability:",
         "",
     ]
     for cmd_label in ('info', 'pwr', 'bat', 'soh', 'stat', 'data_event'):
@@ -267,7 +267,7 @@ def generate_rack_report(diagnoses: list[PackDiagnosis], rack_raw: str = "") -> 
     if not failed_or_degrading:
         lines.append("- **No action required.** All packs scanned reported HEALTHY.")
     else:
-        lines.append("- For each pack flagged as **FAILED** or **DEGRADING** below, **plug the cable directly into that pack's console port** and re-run the diagnostic. This captures the per-pack lifetime statistics, per-cell SOH counters and full event log that the master-bus relay does not propagate — they are essential evidence for warranty / RMA discussions.")
+        lines.append("- For each pack flagged as **FAILED** or **DEGRADING** below, **plug the cable directly into that pack's console port** and re-run the diagnostic. This captures the per-pack lifetime statistics, per-cell SOH counters and full event log that the master-bus relay does not propagate — the complete detail for that pack if you need to discuss it with your installer or Pylontech.")
         lines.append("- Inspect each failed/degrading pack physically for any swelling, blue residue at ports, terminal corrosion or thermal damage.")
         lines.append("- If multiple packs from the same manufacturing batch (sequential serial numbers, same release date) are failing, note this pattern when raising your service request — it may indicate a cell-batch defect rather than independent end-of-life.")
 

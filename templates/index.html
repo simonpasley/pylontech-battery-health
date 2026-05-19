@@ -9,7 +9,7 @@
 <body>
     <header>
         <h1>Pylontech Battery Health Check</h1>
-        <p class="subtitle">Read every cell, generate a warranty-claim ready report — no battery expertise required.</p>
+        <p class="subtitle">Read every cell, get a clear plain-English health report — no battery expertise required.</p>
         <p class="trust-signal">Read-only diagnostic. Destructive commands (factory / reset / erase / config writes) are blocked at the server.</p>
     </header>
 
@@ -93,7 +93,7 @@
     <!-- Step 3: Per-pack diagnostic -->
     <section class="card diagnose-card hidden" id="diagnose-section">
         <h2>3. Full diagnostic</h2>
-        <p class="hint">Runs all six warranty-relevant commands (<code>info</code>, <code>pwr</code>, <code>bat</code>, <code>soh</code>, <code>stat</code>, <code>data event</code>) and interprets the results for you. Click <strong>Diagnose</strong> on any row in the rack table above, or pick a pack here:</p>
+        <p class="hint">Runs all six diagnostic commands (<code>info</code>, <code>pwr</code>, <code>bat</code>, <code>soh</code>, <code>stat</code>, <code>data event</code>) and interprets the results for you. Click <strong>Diagnose</strong> on any row in the rack table above, or pick a pack here:</p>
         <div class="row">
             <label for="diag-pack-id">Pack address:</label>
             <input id="diag-pack-id" type="number" min="1" max="16" placeholder="1–16" style="max-width: 110px;">
@@ -102,10 +102,10 @@
         <div id="diagnose-result"></div>
     </section>
 
-    <!-- Step 4: Event-log dumps for warranty -->
+    <!-- Step 4: Event-log dumps (full diagnostic detail) -->
     <section class="card hidden" id="eventlog-section">
-        <h2>4. Event-log dumps <span class="muted">(for Pylontech RMA)</span></h2>
-        <p class="hint">Pylontech's RMA team typically asks for "Event data" — the full event log of each suspect pack. The two dumps below are the console-native equivalents of BatteryView's event-log export.</p>
+        <h2>4. Event-log dumps <span class="muted">(full diagnostic detail)</span></h2>
+        <p class="hint">These dumps pull the full event log of a pack straight from its own BMS — the deepest level of detail available, and the console-native equivalent of BatteryView's event-log export. Useful when a pack needs closer investigation.</p>
         <p class="hint important"><strong>Important — these dumps are pack-local.</strong> The <code>log</code> and <code>data event</code> commands only return data from the pack the cable is <strong>physically plugged into right now</strong>. To dump pack 8's event log: disconnect, move the cable to pack 8's console port, click Connect, then click the dump button. The tool will ask which pack the cable is in before each dump and will stamp that into the filename so you don't mix them up.</p>
         <div class="row">
             <button id="btn-eventlog" type="button">Dump full event log (.txt)</button>

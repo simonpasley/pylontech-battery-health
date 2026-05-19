@@ -1,4 +1,4 @@
-"""Warranty-grade diagnostic for Pylontech battery packs.
+"""Battery-health diagnostic for Pylontech battery packs.
 
 Runs the full diagnostic command set against a pack and returns structured
 data with a built-in health verdict. The interpretation is encoded in code
@@ -50,7 +50,7 @@ class PackStats:
     (e.g. queried via master comm bus where `stat` is pack-local)."""
     soh_percent: Optional[int] = None  # BMS-reported SOH (0 = end-of-life)
     soh_abnormal_events: int = 0  # `SOH Times`
-    real_cycles: int = 0          # `CYCLE Times` — warranty-relevant cycle count
+    real_cycles: int = 0          # `CYCLE Times` — the meaningful real-cycle count
     charge_transitions: int = 0   # `Charge Times` — misleading partial-event counter
     discharge_count: int = 0
     bat_ov_count: int = 0         # cell over-voltage protection trips
@@ -566,7 +566,7 @@ def scan_rack(console, progress_cb=None) -> tuple[list[PackDiagnosis], str]:
     """Scan every online pack in the rack from the master.
 
     1. Reads the multi-pack `pwr` table from the master to discover online packs
-    2. For each pack, runs the warranty-relevant command set that propagates
+    2. For each pack, runs the health-relevant command set that propagates
        across the comm bus (info, pwr, bat, soh)
     3. The pack we are physically connected to (typically the master, address 1)
        gets the FULL diagnostic including stat and data event

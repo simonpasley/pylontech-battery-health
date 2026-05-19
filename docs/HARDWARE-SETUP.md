@@ -74,7 +74,7 @@ Pylontech racks consist of one **master** module and 0–N **slave** modules con
 
 - Get the **full event log** (`log`) for that pack — this is local-only and does **not** propagate via the master
 - Get authoritative per-cell **SOH-abnormal counts** (`soh N` against a slave often returns 0 for all SOHCount fields when relayed via the master, even when the slave's local query shows non-zero counts)
-- Capture warranty-grade detail on a known-failed pack
+- Capture full diagnostic detail on a known-failed pack
 
 ### Identifying the master physically
 
