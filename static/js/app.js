@@ -450,9 +450,14 @@ function renderScanSummary(data, jobId) {
   const failedCount = failedPacks.length;
   const degradingCount = degradingPacks.length;
   const healthyCount = data.packs.filter(p => p.verdict === 'HEALTHY').length;
-  let overallKlass = 'HEALTHY';
+  const unknownCount = data.packs.filter(p => p.verdict === 'UNKNOWN').length;
+  // UNKNOWN must not roll up to HEALTHY — it means "couldn't judge",
+  // not "everything is fine".
+  let overallKlass;
   if (failedCount > 0) overallKlass = 'FAILED';
   else if (degradingCount > 0) overallKlass = 'DEGRADING';
+  else if (unknownCount > 0) overallKlass = 'UNKNOWN';
+  else overallKlass = 'HEALTHY';
 
   // Inline next-steps card — surfaced ABOVE the download button when any
   // pack needs a cable-handover. Without this a non-expert installer
@@ -487,7 +492,7 @@ function renderScanSummary(data, jobId) {
       <p>
         <strong>${healthyCount}</strong> healthy &nbsp;·&nbsp;
         <strong>${degradingCount}</strong> degrading &nbsp;·&nbsp;
-        <strong>${failedCount}</strong> failed
+        <strong>${failedCount}</strong> failed${unknownCount > 0 ? ` &nbsp;·&nbsp; <strong>${unknownCount}</strong> unknown` : ''}
       </p>
       <div class="table-wrap">
         <table>

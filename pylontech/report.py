@@ -205,11 +205,19 @@ def generate_rack_report(diagnoses: list[PackDiagnosis], rack_raw: str = "") -> 
     for d in diagnoses:
         verdict_counts[d.verdict] = verdict_counts.get(d.verdict, 0) + 1
 
-    overall = 'HEALTHY'
+    # Overall verdict is the highest-severity outcome across the rack.
+    # UNKNOWN is a real outcome ("conditions not valid to judge") and
+    # must not roll up to HEALTHY — otherwise a scan of an entirely
+    # idle rack reads as a clean bill of health when nothing was
+    # actually assessed.
     if verdict_counts.get('FAILED', 0) > 0:
         overall = 'FAILED'
     elif verdict_counts.get('DEGRADING', 0) > 0:
         overall = 'DEGRADING'
+    elif verdict_counts.get('UNKNOWN', 0) > 0:
+        overall = 'UNKNOWN'
+    else:
+        overall = 'HEALTHY'
 
     lines: list[str] = [
         "# Pylontech Rack — Whole-Rack Diagnostic Report",
@@ -219,7 +227,8 @@ def generate_rack_report(diagnoses: list[PackDiagnosis], rack_raw: str = "") -> 
         f"**Packs scanned:** {len(diagnoses)} "
         f"(Healthy: {verdict_counts.get('HEALTHY', 0)}, "
         f"Degrading: {verdict_counts.get('DEGRADING', 0)}, "
-        f"Failed: {verdict_counts.get('FAILED', 0)})",
+        f"Failed: {verdict_counts.get('FAILED', 0)}, "
+        f"Unknown: {verdict_counts.get('UNKNOWN', 0)})",
         "",
     ]
     if master:
