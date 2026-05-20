@@ -194,14 +194,18 @@ def api_rack():
         raw = console._send('pwr', timeout=20)
 
     packs = []
-    in_data = False
+    header_cols: Optional[list[str]] = None
     for line in raw.splitlines():
         line_strip = line.strip()
-        # Header detection: line containing 'Power' and 'Volt' and 'Curr'
-        if not in_data and 'Power' in line and 'Volt' in line and 'Curr' in line:
-            in_data = True
-            continue
-        if not in_data:
+        # Header detection: line containing 'Power' and 'Volt' and 'Curr'.
+        # Tokenise the header so we can locate columns by name. Different
+        # Pylontech firmware generations emit different column layouts here
+        # (B69 on US3000C/US5000 interleaves Tlow.Id/Thigh.Id/Vlow.Id/
+        # Vhigh.Id cell-id columns; B65 on US2000B/Phantom-S omits them).
+        # Indexing by name handles both without needing per-firmware paths.
+        if header_cols is None:
+            if 'Power' in line and 'Volt' in line and 'Curr' in line:
+                header_cols = [h for h in line.split() if h]
             continue
         if not line_strip or line_strip.startswith('Command') or line_strip.startswith('$'):
             continue
@@ -217,31 +221,56 @@ def api_rack():
         if 'Absent' in line:
             packs.append({'pack': pack_num, 'absent': True})
             continue
-        # Try parsing the multi-column rack table.
-        # Column order observed on US5000 master with US3000C slaves:
-        # Power Volt Curr Tempr Tlow Tlow.Id Thigh Thigh.Id Vlow Vlow.Id Vhigh Vhigh.Id ...
+
+        # Look up each value by its header column name. The Time column
+        # value contains a space (`YYYY-MM-DD HH:MM:SS`), so position-based
+        # indexing breaks for any column AFTER Time — but every column we
+        # actually read sits BEFORE Time in both B65 and B69 layouts, so
+        # header-name lookup is safe.
+        def col(name: str) -> Optional[str]:
+            if not header_cols:
+                return None
+            try:
+                i = header_cols.index(name)
+            except ValueError:
+                return None
+            return parts[i] if i < len(parts) else None
+
+        def col_int(name: str) -> Optional[int]:
+            v = col(name)
+            if v is None:
+                return None
+            try:
+                return int(v)
+            except ValueError:
+                return None
+
         try:
-            row = {
-                'pack': pack_num,
-                'voltage_mv': int(parts[1]),
-                'current_ma': int(parts[2]),
-                'temp_mc': int(parts[3]),
-            }
-            if len(parts) >= 11:
-                row['vlow_mv'] = int(parts[8])
-                row['vhigh_mv'] = int(parts[10])
-                row['spread_mv'] = row['vhigh_mv'] - row['vlow_mv']
-            for p in parts:
-                if p.endswith('%'):
-                    try:
-                        row['soc_percent'] = int(p[:-1])
-                    except ValueError:
-                        pass
-            # State word (Charging / Discharging / Idle)
-            for p in parts:
-                if p in ('Dischg', 'Charge', 'Idle'):
-                    row['state'] = p
-                    break
+            row = {'pack': pack_num}
+            volt = col_int('Volt')
+            curr = col_int('Curr')
+            temp = col_int('Tempr')
+            vlow = col_int('Vlow')
+            vhigh = col_int('Vhigh')
+            if volt is not None:
+                row['voltage_mv'] = volt
+            if curr is not None:
+                row['current_ma'] = curr
+            if temp is not None:
+                row['temp_mc'] = temp
+            if vlow is not None and vhigh is not None:
+                row['vlow_mv'] = vlow
+                row['vhigh_mv'] = vhigh
+                row['spread_mv'] = vhigh - vlow
+            coul = col('Coulomb')
+            if coul and coul.endswith('%'):
+                try:
+                    row['soc_percent'] = int(coul[:-1])
+                except ValueError:
+                    pass
+            state = col('Base.St')
+            if state in ('Dischg', 'Charge', 'Idle'):
+                row['state'] = state
             packs.append(row)
         except (ValueError, IndexError):
             packs.append({'pack': pack_num, 'parse_error': True, 'raw_line': line_strip})
