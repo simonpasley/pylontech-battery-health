@@ -24,6 +24,38 @@ DISCLAIMER_LINES = [
 ]
 
 
+def _short_reason(reasons: list[str]) -> str:
+    """Distil the full verdict_reasons text into a short one-line tag for the
+    rack-summary table. The full reasoning still appears in the per-pack
+    section below; this column is here so UNKNOWN doesn't read as a tool
+    error.
+    """
+    if not reasons:
+        return '--'
+    txt = reasons[0]
+    low = txt.lower()
+    if 'no meaningful load' in low or 'idle' in low:
+        return 'Re-test under load — pack idle'
+    if 'outside' in low and 'validity window' in low:
+        return 'Re-test at moderate SOC (15–92 %)'
+    if 'cold pack' in low:
+        return 'Re-test when pack warmer (> 5 °C)'
+    if 'comms failure' in low or 'cable disconnected' in low or 'no `info` response' in low:
+        return 'Comms issue — check cable'
+    if 'per-cell voltages parsed' in low or 'expected cells parsed' in low:
+        return 'Cell data missing — comms loss'
+    if 'spread' in low and 'exceeds' in low and 'failure threshold' in low:
+        return 'Cell-voltage spread exceeds healthy range'
+    if 'soh. status: abnormal' in low:
+        return 'BMS reports pack abnormal'
+    if 'end-of-life' in low:
+        return 'BMS declared pack end-of-life'
+    if 'soh-abnormal events' in low:
+        return 'One or more cells flagged abnormal by BMS'
+    first = txt.split('.')[0]
+    return (first[:77] + '…') if len(first) > 80 else first
+
+
 def _pack_section(diag: PackDiagnosis, heading_level: int = 1) -> list[str]:
     """Render one pack's diagnostic content as Markdown lines.
 
@@ -249,16 +281,17 @@ def generate_rack_report(diagnoses: list[PackDiagnosis], rack_raw: str = "") -> 
         "",
         "## Verdict summary",
         "",
-        "| Pack | Model | Barcode | Verdict | Spread (mV) | Connected | Weakest cell |",
-        "|---|---|---|---|---|---|---|",
+        "| Pack | Model | Barcode | Verdict | Spread (mV) | Connected | Weakest cell | Note |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for d in diagnoses:
         connect_mode = 'direct' if not d.via_master else 'via master'
         weakest = f"cell {d.weakest_cell}" if d.weakest_cell is not None else '--'
+        note = _short_reason(d.verdict_reasons) if d.verdict != 'HEALTHY' else '--'
         lines.append(
             f"| **{d.address}** | {d.model or '--'} | `{d.barcode or '--'}` | "
             f"**{VERDICT_BADGE.get(d.verdict, 'UNKNOWN')}** | "
-            f"{d.spread_mv} | {connect_mode} | {weakest} |"
+            f"{d.spread_mv} | {connect_mode} | {weakest} | {note} |"
         )
 
     lines += [
@@ -268,6 +301,7 @@ def generate_rack_report(diagnoses: list[PackDiagnosis], rack_raw: str = "") -> 
         "- 🟢 **HEALTHY** — cell-voltage spread < 30 mV under load, no flagged cells, BMS reports normal SOH",
         "- 🟡 **DEGRADING** — spread 30–50 mV, OR one or more flagged cells, OR sustained SOH-abnormal events",
         "- 🔴 **FAILED** — spread > 50 mV, OR BMS-reported SOH = 0, OR runtime `Soh. Status` flag is `Abnormal`",
+        "- ⚪ **UNKNOWN** — measurement conditions not valid for a confident verdict (typically: pack idle, SOC at the extremes, cold pack, or comms hiccup). **Not a failure** — the tool is deliberately conservative. The Note column above suggests what to re-test.",
         "",
         "## Recommended next steps",
         "",

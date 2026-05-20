@@ -352,6 +352,35 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// Distil the full verdict_reasons text into a short, one-line tag for the
+// rack-summary table. The full reasoning appears in the per-pack "Why
+// this verdict" panel; here we just need enough that UNKNOWN doesn't read
+// as "the tool errored".
+function verdictShortReason(fullReason) {
+  if (!fullReason) return '';
+  if (/idle|no meaningful load/i.test(fullReason))
+    return 'Re-test under load — pack idle';
+  if (/SOC.*outside.*validity/i.test(fullReason))
+    return 'Re-test at moderate SOC (15–92 %)';
+  if (/cold pack/i.test(fullReason))
+    return 'Re-test when pack warmer (> 5 °C)';
+  if (/comms failure|cable disconnected|No `?info`? response/i.test(fullReason))
+    return 'Comms issue — check cable';
+  if (/per-cell voltages parsed|expected cells parsed/i.test(fullReason))
+    return 'Cell data missing — comms loss';
+  if (/spread.*exceeds.*failure threshold/i.test(fullReason))
+    return 'Cell-voltage spread exceeds healthy range';
+  if (/`Soh\. Status: Abnormal`/i.test(fullReason))
+    return 'BMS reports pack abnormal';
+  if (/end-of-life/i.test(fullReason))
+    return 'BMS declared pack end-of-life';
+  if (/cell\(s\) flagged with SOH-abnormal events/i.test(fullReason))
+    return 'One or more cells flagged abnormal by BMS';
+  // Fallback: first sentence, truncated to fit the cell
+  const first = fullReason.split(/[.!]/)[0];
+  return first.length > 80 ? first.slice(0, 77) + '…' : first;
+}
+
 async function startRackScan() {
   const btn = $('btn-scan');
   btn.disabled = true;
@@ -431,12 +460,15 @@ function renderScanSummary(data, jobId) {
     const klass = (d.verdict || 'UNKNOWN').toLowerCase();
     const sklass = spreadKlass(d.spread_mv);
     const connectMode = d.via_master ? '<span class="muted">via master</span>' : '<strong>direct</strong>';
+    const note = (d.verdict !== 'HEALTHY' && d.verdict_reasons && d.verdict_reasons.length > 0)
+      ? `<div class="verdict-note">${escapeHtml(verdictShortReason(d.verdict_reasons[0]))}</div>`
+      : '';
     return `
       <tr class="row-${klass}">
         <td><strong>${d.address}</strong></td>
         <td>${escapeHtml(d.model || '--')}</td>
         <td><code>${escapeHtml(d.barcode || '--')}</code></td>
-        <td><span class="verdict-badge ${d.verdict}">${d.verdict}</span></td>
+        <td><span class="verdict-badge ${d.verdict}">${d.verdict}</span>${note}</td>
         <td class="num spread-cell ${sklass}">${d.spread_mv} mV</td>
         <td>${connectMode}</td>
         <td class="num">${(d.pack_voltage_mv/1000).toFixed(2)} V</td>
