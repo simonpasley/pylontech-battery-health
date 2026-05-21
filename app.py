@@ -25,6 +25,8 @@ from pylontech.connection import ConnectionManager
 from pylontech.console import PylonConsole
 from pylontech.diagnose import PackDiagnosis, diagnose_pack, parse_info, scan_rack
 from pylontech.report import generate_report, generate_rack_report
+from pylontech.cerbo import CerboClient, CerboReadings, discover_cerbos
+from pylontech.crosscheck import run_crosschecks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +50,12 @@ jobs_lock = threading.Lock()
 # against the wrong pack's data. Wrap every console._send / scan_rack /
 # dump_* call with this lock.
 serial_lock = threading.Lock()
+
+# Optional Cerbo GX connection (Modbus TCP). Independent of the serial
+# battery connection — either, both, or neither can be active.
+cerbo_client: Optional[CerboClient] = None
+last_cerbo_readings: Optional[CerboReadings] = None
+cerbo_lock = threading.Lock()
 
 # How long after a job finishes we keep its result before reaping.
 JOB_TTL_SECONDS = 3600
@@ -573,6 +581,120 @@ def api_scan_last():
         'timestamp': last_rack_scan['timestamp'],
         'packs': [asdict(d) for d in last_rack_scan['diagnoses']],
     })
+
+
+# ---------------------------------------------------------------------------
+# Cerbo GX (Victron Venus OS) — optional second source.
+# ---------------------------------------------------------------------------
+
+@app.route('/api/cerbo/discover', methods=['GET'])
+def api_cerbo_discover():
+    """Run mDNS discovery for Cerbo / Venus GX devices on the LAN."""
+    try:
+        hosts = discover_cerbos(timeout=2.0)
+    except Exception as e:
+        logger.exception("Cerbo discovery failed")
+        return jsonify({'error': str(e), 'hosts': []}), 500
+    return jsonify({'hosts': hosts})
+
+
+@app.route('/api/cerbo/connect', methods=['POST'])
+def api_cerbo_connect():
+    """Open a Modbus TCP connection to a Cerbo."""
+    global cerbo_client
+    data = request.get_json() or {}
+    host = (data.get('host') or '').strip()
+    port = int(data.get('port') or 502)
+    if not host:
+        return jsonify({'error': 'No host specified'}), 400
+
+    with cerbo_lock:
+        if cerbo_client is not None:
+            try:
+                cerbo_client.disconnect()
+            except Exception:
+                pass
+            cerbo_client = None
+        client = CerboClient()
+        ok = client.connect(host, port=port)
+        if not ok:
+            return jsonify({
+                'error': f'Failed to open Modbus TCP to {host}:{port}. Check IP, that the device is reachable, and that Modbus TCP is enabled in Settings → Services on the Cerbo.',
+            }), 500
+        cerbo_client = client
+    return jsonify({'success': True, 'host': host, 'port': port})
+
+
+@app.route('/api/cerbo/disconnect', methods=['POST'])
+def api_cerbo_disconnect():
+    global cerbo_client, last_cerbo_readings
+    with cerbo_lock:
+        if cerbo_client is not None:
+            try:
+                cerbo_client.disconnect()
+            except Exception as e:
+                logger.warning(f"Error disconnecting Cerbo: {e}")
+            cerbo_client = None
+        last_cerbo_readings = None
+    return jsonify({'success': True})
+
+
+@app.route('/api/cerbo/status', methods=['GET'])
+def api_cerbo_status():
+    with cerbo_lock:
+        connected = cerbo_client is not None and cerbo_client.is_connected
+        host = cerbo_client.host if connected else ''
+        port = cerbo_client.port if connected else 0
+    return jsonify({'connected': connected, 'host': host, 'port': port})
+
+
+@app.route('/api/cerbo/read', methods=['GET'])
+def api_cerbo_read():
+    """Read the current Cerbo snapshot and cache it for the cross-check engine."""
+    global last_cerbo_readings
+    with cerbo_lock:
+        if cerbo_client is None or not cerbo_client.is_connected:
+            return jsonify({'error': 'No Cerbo connected'}), 400
+        try:
+            readings = cerbo_client.read_all()
+        except Exception as e:
+            logger.exception("Cerbo read failed")
+            return jsonify({'error': f'Cerbo read failed: {e}'}), 500
+        last_cerbo_readings = readings
+    return jsonify(asdict(readings))
+
+
+@app.route('/api/crosscheck', methods=['GET'])
+def api_crosscheck():
+    """Run the cross-check engine against the most recent battery + Cerbo data.
+
+    Pulls battery diagnoses from `last_diagnoses` (per-pack diagnostics already
+    run by the user) plus the most recent rack scan; pulls Cerbo readings from
+    `last_cerbo_readings` (refreshed by /api/cerbo/read or on demand here).
+    Either or both may be absent; the engine handles partial inputs.
+    """
+    # Compose the battery side from whatever's cached. Prefer the rack scan
+    # if it's newer; fall back to whatever individual diagnoses are present.
+    diagnoses: list[PackDiagnosis] = []
+    rack_diags = last_rack_scan.get('diagnoses') or []
+    if rack_diags:
+        diagnoses = list(rack_diags)
+    elif last_diagnoses:
+        diagnoses = list(last_diagnoses.values())
+
+    # Refresh the Cerbo reading on demand if a Cerbo is connected; this
+    # keeps the cross-check current without requiring the UI to poll
+    # /api/cerbo/read separately.
+    global last_cerbo_readings
+    with cerbo_lock:
+        if cerbo_client is not None and cerbo_client.is_connected:
+            try:
+                last_cerbo_readings = cerbo_client.read_all()
+            except Exception as e:
+                logger.warning(f"Cerbo read during crosscheck failed: {e}")
+
+    report = run_crosschecks(diagnoses, last_cerbo_readings)
+    return jsonify(asdict(report))
 
 
 # ---------------------------------------------------------------------------
