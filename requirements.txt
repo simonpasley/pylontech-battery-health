@@ -1,2 +1,4 @@
 flask>=3.0
 pyserial>=3.5
+pymodbus>=3.6,<4.0
+zeroconf>=0.130
