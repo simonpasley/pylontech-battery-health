@@ -358,24 +358,29 @@ function escapeHtml(s) {
 // as "the tool errored".
 function verdictShortReason(fullReason) {
   if (!fullReason) return '';
-  if (/idle|no meaningful load/i.test(fullReason))
-    return 'Re-test under load — pack idle';
-  if (/SOC.*outside.*validity/i.test(fullReason))
-    return 'Re-test at moderate SOC (15–92 %)';
-  if (/cold pack/i.test(fullReason))
+  // UNKNOWN causes
+  if (/outside the idle-plateau diagnostic window/i.test(fullReason))
+    return 'Re-test under load, or wait for SOC in the plateau';
+  if (/outside the .+ % validity window/i.test(fullReason))
+    return 'Re-test at moderate SOC (CV-tail or near-empty)';
+  if (/cold cells diverge mechanically|temperature .+ below .+ °C/i.test(fullReason))
     return 'Re-test when pack warmer (> 5 °C)';
   if (/comms failure|cable disconnected|No `?info`? response/i.test(fullReason))
     return 'Comms issue — check cable';
   if (/per-cell voltages parsed|expected cells parsed/i.test(fullReason))
     return 'Cell data missing — comms loss';
-  if (/spread.*exceeds.*failure threshold/i.test(fullReason))
-    return 'Cell-voltage spread exceeds healthy range';
+  // Spread-based DEGRADING / FAILED
+  if (/spread .+ exceeds .+ failure threshold/i.test(fullReason))
+    return 'Cell-voltage spread above failure threshold';
+  if (/spread .+ exceeds .+ healthy threshold/i.test(fullReason))
+    return 'Cell-voltage spread above healthy threshold';
+  // BMS-flag verdicts
   if (/`Soh\. Status: Abnormal`/i.test(fullReason))
     return 'BMS reports pack abnormal';
   if (/end-of-life/i.test(fullReason))
     return 'BMS declared pack end-of-life';
   if (/cell\(s\) flagged with SOH-abnormal events/i.test(fullReason))
-    return 'One or more cells flagged abnormal by BMS';
+    return 'Cells flagged abnormal by BMS';
   // Fallback: first sentence, truncated to fit the cell
   const first = fullReason.split(/[.!]/)[0];
   return first.length > 80 ? first.slice(0, 77) + '…' : first;

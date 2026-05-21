@@ -14,22 +14,35 @@ from typing import Optional
 
 
 # Cell-voltage spread thresholds (mV) under load. Healthy LFP packs at
-# moderate current sit well under 30 mV. 30-50 mV indicates emerging
-# imbalance / weakening cell. > 50 mV is a clear failure signature.
+# moderate current sit well under 30 mV; 30–50 mV indicates emerging
+# imbalance / weakening cell; > 50 mV is a clear failure signature.
 SPREAD_HEALTHY_MAX = 30
 SPREAD_DEGRADING_MAX = 50
 
+# Idle-plateau cell-voltage spread thresholds (mV). At rest in the flat
+# part of the LFP discharge curve, cells should sit *tighter* than under
+# load because there is no load-induced IR scatter. So the idle bands are
+# proportionately smaller. These let the tool deliver a verdict on a pack
+# that's quietly sitting in the inverter loop rather than always punting
+# to UNKNOWN.
+IDLE_SPREAD_HEALTHY_MAX = 20
+IDLE_SPREAD_DEGRADING_MAX = 40
+
 # Measurement-validity envelope. Cell-voltage spread is only meaningful
-# outside the regions where a healthy pack legitimately shows divergent
-# cell voltages: CV-tail charging (high SOC), near-empty discharge (low
-# SOC), cold pack, and pure rest. Outside this envelope verdict goes to
-# UNKNOWN with a "re-test under load" hint. The current threshold is
-# deliberately low (200 mA) so normal residential discharge of <1 A still
-# produces a diagnostic verdict; only truly idle packs get suppressed.
-VALID_MIN_CURRENT_MA = 200       # |I| >= 0.2 A — excludes pure rest only
-VALID_SOC_MIN = 15               # %
-VALID_SOC_MAX = 92               # %
-VALID_TEMP_MIN_MC = 5000         # 5 °C in milli-celsius
+# inside one of two windows:
+#   (a) Under load: |I| >= 200 mA, SOC 15–92 %, temp > 5 °C.
+#       Uses SPREAD_HEALTHY_MAX / SPREAD_DEGRADING_MAX.
+#   (b) Idle on the LFP plateau: |I| < 200 mA, SOC 10–85 %, temp > 5 °C.
+#       Uses IDLE_SPREAD_HEALTHY_MAX / IDLE_SPREAD_DEGRADING_MAX.
+# Outside both, the verdict goes to UNKNOWN with a hint of what to re-test:
+# CV-tail (top), near-empty (bottom), or cold pack distort cell voltages
+# mechanically rather than indicating real imbalance.
+VALID_MIN_CURRENT_MA = 200       # |I| >= 0.2 A separates "loaded" from "idle"
+VALID_SOC_MIN = 15               # %  — loaded-mode window lower bound
+VALID_SOC_MAX = 92               # %  — loaded-mode window upper bound
+IDLE_SOC_MIN = 10                # %  — idle-mode window lower bound
+IDLE_SOC_MAX = 85                # %  — idle-mode window upper bound (avoid CV tail)
+VALID_TEMP_MIN_MC = 5000         # 5 °C in milli-celsius — applies to both modes
 
 
 @dataclass
@@ -505,43 +518,68 @@ def diagnose_pack(console, address: int, via_master: bool = False) -> PackDiagno
         )
 
     # ----- Sanity gate 2: are measurement conditions valid? --------------
-    # Cell-voltage spread is only diagnostic under load and at moderate SOC.
-    # If we're at rest, in CV tail, near-empty, or cold, we don't apply the
-    # spread thresholds — but we DO still apply BMS-reported flags above.
+    # Cell-voltage spread is diagnostic in two windows: under load at
+    # moderate SOC, OR idle on the flat LFP plateau. Outside both, the
+    # spread isn't physically meaningful (CV-tail, near-empty, cold) so
+    # we don't apply the spread thresholds — but we DO still apply
+    # BMS-reported flags above.
     abs_current = abs(diag.pack_current_ma)
     soc = diag.pack_soc_percent
     temp_mc = diag.pack_temp_mc
+    under_load = abs_current >= VALID_MIN_CURRENT_MA
+
+    # Pick the right diagnostic window and spread thresholds for the mode.
+    if under_load:
+        mode_desc = "under load"
+        soc_lo, soc_hi = VALID_SOC_MIN, VALID_SOC_MAX
+        healthy_max, degrading_max = SPREAD_HEALTHY_MAX, SPREAD_DEGRADING_MAX
+    else:
+        mode_desc = "idle on LFP plateau"
+        soc_lo, soc_hi = IDLE_SOC_MIN, IDLE_SOC_MAX
+        healthy_max, degrading_max = IDLE_SPREAD_HEALTHY_MAX, IDLE_SPREAD_DEGRADING_MAX
+
     invalid_reasons = []
-    if abs_current < VALID_MIN_CURRENT_MA:
-        invalid_reasons.append(f"|current| {abs_current/1000:.2f} A < {VALID_MIN_CURRENT_MA/1000:.1f} A (idle / no meaningful load)")
-    if soc < VALID_SOC_MIN or soc > VALID_SOC_MAX:
-        invalid_reasons.append(f"SOC {soc} % outside {VALID_SOC_MIN}–{VALID_SOC_MAX} % validity window (CV-tail or near-empty distort spread)")
+    if not (soc_lo <= soc <= soc_hi):
+        if under_load:
+            invalid_reasons.append(
+                f"SOC {soc} % is outside the {soc_lo}–{soc_hi} % validity window "
+                f"({mode_desc} — CV-tail or near-empty distort spread)"
+            )
+        else:
+            invalid_reasons.append(
+                f"Pack is idle and SOC {soc} % is outside the idle-plateau diagnostic "
+                f"window {soc_lo}–{soc_hi} %. Re-test under load (|I| ≥ "
+                f"{VALID_MIN_CURRENT_MA/1000:.1f} A) or wait until SOC settles in the plateau."
+            )
     if temp_mc and temp_mc < VALID_TEMP_MIN_MC:
-        invalid_reasons.append(f"pack temperature {temp_mc/1000:.1f} °C < {VALID_TEMP_MIN_MC/1000:.0f} °C (cold pack distorts cell voltages)")
+        invalid_reasons.append(
+            f"Pack temperature {temp_mc/1000:.1f} °C is below {VALID_TEMP_MIN_MC/1000:.0f} °C "
+            f"(cold cells diverge mechanically — not a real imbalance)"
+        )
     conditions_valid = not invalid_reasons
 
     if not conditions_valid:
-        # Don't apply spread-based verdicts. If nothing else flagged the pack,
-        # downgrade to UNKNOWN with an explanation so the user re-tests.
+        # Don't apply spread-based verdicts. If nothing else flagged the
+        # pack, downgrade to UNKNOWN with an explanation so the user re-tests.
         if verdict == "HEALTHY":
             verdict = "UNKNOWN"
             reasons.append(
-                f"Cell-voltage spread = {diag.spread_mv} mV, but measurement conditions not valid: "
-                + "; ".join(invalid_reasons)
-                + f". Re-test under load (|I| ≥ {VALID_MIN_CURRENT_MA/1000:.1f} A) with SOC "
-                f"{VALID_SOC_MIN}–{VALID_SOC_MAX} % and pack > {VALID_TEMP_MIN_MC/1000:.0f} °C."
+                f"Cell-voltage spread = {diag.spread_mv} mV, but conditions are not "
+                f"valid for a confident verdict: " + "; ".join(invalid_reasons)
             )
     else:
-        if diag.spread_mv > SPREAD_DEGRADING_MAX:
+        if diag.spread_mv > degrading_max:
             verdict = "FAILED"
             reasons.append(
-                f"Cell-voltage spread {diag.spread_mv} mV exceeds {SPREAD_DEGRADING_MAX} mV failure threshold"
+                f"Cell-voltage spread {diag.spread_mv} mV exceeds {degrading_max} mV "
+                f"failure threshold ({mode_desc})"
             )
-        elif diag.spread_mv > SPREAD_HEALTHY_MAX:
+        elif diag.spread_mv > healthy_max:
             if verdict == "HEALTHY":
                 verdict = "DEGRADING"
             reasons.append(
-                f"Cell-voltage spread {diag.spread_mv} mV exceeds {SPREAD_HEALTHY_MAX} mV healthy threshold"
+                f"Cell-voltage spread {diag.spread_mv} mV exceeds {healthy_max} mV "
+                f"healthy threshold ({mode_desc})"
             )
 
     if diag.abnormal_cells:

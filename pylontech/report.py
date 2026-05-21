@@ -34,24 +34,29 @@ def _short_reason(reasons: list[str]) -> str:
         return '--'
     txt = reasons[0]
     low = txt.lower()
-    if 'no meaningful load' in low or 'idle' in low:
-        return 'Re-test under load — pack idle'
-    if 'outside' in low and 'validity window' in low:
-        return 'Re-test at moderate SOC (15–92 %)'
-    if 'cold pack' in low:
+    # UNKNOWN causes
+    if 'outside the idle-plateau diagnostic window' in low:
+        return 'Re-test under load, or wait for SOC in the plateau'
+    if 'outside the' in low and 'validity window' in low:
+        return 'Re-test at moderate SOC (CV-tail or near-empty)'
+    if 'cold cells diverge mechanically' in low or ('temperature' in low and 'below' in low and '°c' in low):
         return 'Re-test when pack warmer (> 5 °C)'
     if 'comms failure' in low or 'cable disconnected' in low or 'no `info` response' in low:
         return 'Comms issue — check cable'
     if 'per-cell voltages parsed' in low or 'expected cells parsed' in low:
         return 'Cell data missing — comms loss'
+    # Spread-based DEGRADING / FAILED
     if 'spread' in low and 'exceeds' in low and 'failure threshold' in low:
-        return 'Cell-voltage spread exceeds healthy range'
+        return 'Cell-voltage spread above failure threshold'
+    if 'spread' in low and 'exceeds' in low and 'healthy threshold' in low:
+        return 'Cell-voltage spread above healthy threshold'
+    # BMS-flag verdicts
     if 'soh. status: abnormal' in low:
         return 'BMS reports pack abnormal'
     if 'end-of-life' in low:
         return 'BMS declared pack end-of-life'
     if 'soh-abnormal events' in low:
-        return 'One or more cells flagged abnormal by BMS'
+        return 'Cells flagged abnormal by BMS'
     first = txt.split('.')[0]
     return (first[:77] + '…') if len(first) > 80 else first
 
