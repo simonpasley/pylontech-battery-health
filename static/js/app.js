@@ -77,10 +77,12 @@ function setConnected(yes, port) {
   $('rack-section').classList.toggle('hidden', !yes);
   $('diagnose-section').classList.toggle('hidden', !yes);
   $('eventlog-section').classList.toggle('hidden', !yes);
+  $('cerbo-section').classList.toggle('hidden', !yes);
   $('console-section').classList.toggle('hidden', !yes);
   if (yes) {
     setStatus(`Connected to ${port}.`, 'connected');
     refreshRack();
+    refreshCerboStatus();
   } else {
     setStatus('Not connected.');
     $('rack-table').querySelector('tbody').innerHTML = '';
@@ -672,6 +674,130 @@ async function sendConsole() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Cerbo GX — optional second source for install cross-checks
+// ---------------------------------------------------------------------------
+
+let _cerboConnected = false;
+
+function setCerboStatus(msg, kind) {
+  const el = $('cerbo-status');
+  el.textContent = msg;
+  el.className = 'status ' + (kind || '');
+}
+
+function setCerboConnected(yes, host) {
+  _cerboConnected = yes;
+  $('btn-cerbo-connect').disabled = yes;
+  $('btn-cerbo-disconnect').disabled = !yes;
+  $('cerbo-host-select').disabled = yes;
+  $('cerbo-host-manual').disabled = yes;
+  if (yes) {
+    setCerboStatus(`Connected to Cerbo at ${host}.`, 'connected');
+    refreshCrosschecks();
+  } else {
+    setCerboStatus('No Cerbo connected.');
+    $('crosscheck-results').classList.add('hidden');
+    $('crosscheck-list').innerHTML = '';
+  }
+}
+
+async function refreshCerboStatus() {
+  // Called on page open / after battery connect — sync UI to backend reality.
+  try {
+    const s = await api('/api/cerbo/status');
+    if (s.connected) {
+      setCerboConnected(true, s.host);
+    } else {
+      setCerboConnected(false);
+    }
+  } catch (e) { /* ignore — backend may be stopping */ }
+}
+
+async function discoverCerbos() {
+  const sel = $('cerbo-host-select');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Scanning…</option>';
+  try {
+    const data = await api('/api/cerbo/discover');
+    sel.innerHTML = '<option value="">Select Cerbo…</option>';
+    (data.hosts || []).forEach(h => {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = h;
+      sel.appendChild(opt);
+    });
+    if (prev && (data.hosts || []).includes(prev)) sel.value = prev;
+    if (!sel.value && data.hosts && data.hosts.length === 1) {
+      sel.value = data.hosts[0];
+    }
+  } catch (e) {
+    sel.innerHTML = '<option value="">Scan failed</option>';
+    setCerboStatus('Cerbo discovery failed: ' + e.message + '. Enter the IP manually.', 'error');
+  }
+}
+
+async function cerboConnectClicked() {
+  const host = ($('cerbo-host-manual').value.trim() || $('cerbo-host-select').value || '').trim();
+  if (!host) {
+    setCerboStatus('Pick a Cerbo from the dropdown or type an IP first.', 'error');
+    return;
+  }
+  setCerboStatus(`Connecting to ${host}…`);
+  $('btn-cerbo-connect').disabled = true;
+  try {
+    const data = await api('/api/cerbo/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host })
+    });
+    setCerboConnected(true, data.host);
+  } catch (e) {
+    setCerboStatus('Cerbo connect failed: ' + e.message, 'error');
+    $('btn-cerbo-connect').disabled = false;
+  }
+}
+
+async function cerboDisconnectClicked() {
+  try { await api('/api/cerbo/disconnect', { method: 'POST' }); }
+  catch (e) { /* ignore */ }
+  setCerboConnected(false);
+}
+
+const _CROSSCHECK_SEVERITY_LABELS = {
+  ok: '✓ OK',
+  info: 'ℹ Info',
+  warning: '⚠ Warning',
+  alert: '⚠ Alert',
+};
+
+async function refreshCrosschecks() {
+  const list = $('crosscheck-list');
+  const wrap = $('crosscheck-results');
+  list.innerHTML = '<p class="muted">Running cross-checks…</p>';
+  wrap.classList.remove('hidden');
+  try {
+    const report = await api('/api/crosscheck');
+    const results = report.results || [];
+    if (results.length === 0) {
+      list.innerHTML = '<p class="muted">No cross-checks to report.</p>';
+      return;
+    }
+    list.innerHTML = results.map(r => `
+      <div class="crosscheck-item crosscheck-${r.severity}">
+        <div class="crosscheck-head">
+          <span class="crosscheck-badge crosscheck-badge-${r.severity}">${_CROSSCHECK_SEVERITY_LABELS[r.severity] || r.severity}</span>
+          <strong>${escapeHtml(r.title)}</strong>
+        </div>
+        <div class="crosscheck-detail">${escapeHtml(r.detail)}</div>
+        ${r.suggestion ? `<div class="crosscheck-suggestion">→ ${escapeHtml(r.suggestion)}</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    list.innerHTML = `<p class="status error">Cross-check failed: ${escapeHtml(e.message)}</p>`;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   $('btn-refresh').addEventListener('click', refreshPorts);
   $('btn-connect').addEventListener('click', connectClicked);
@@ -688,7 +814,20 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btn-eventlog').addEventListener('click', () => startDump('eventlog'));
   $('btn-eventhistory').addEventListener('click', () => startDump('eventhistory'));
   $('btn-scan').addEventListener('click', startRackScan);
+
+  // Cerbo controls
+  $('btn-cerbo-discover').addEventListener('click', discoverCerbos);
+  $('btn-cerbo-connect').addEventListener('click', cerboConnectClicked);
+  $('btn-cerbo-disconnect').addEventListener('click', cerboDisconnectClicked);
+  $('btn-crosscheck-refresh').addEventListener('click', refreshCrosschecks);
+  $('cerbo-host-manual').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') cerboConnectClicked();
+  });
+
   refreshPorts();
+  // Pre-populate Cerbo discovery once the page loads so the dropdown
+  // isn't empty when the battery connection completes.
+  discoverCerbos();
 });
 
 // expose for inline onclick

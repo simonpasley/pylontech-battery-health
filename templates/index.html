@@ -123,6 +123,29 @@
         </div>
     </section>
 
+    <!-- Optional: Cerbo GX — appears after the battery is connected -->
+    <section class="card cerbo-card hidden" id="cerbo-section">
+        <h2>+ Cerbo GX <span class="muted">(optional — adds install cross-checks)</span></h2>
+        <p class="hint">Add a Victron Cerbo GX (or Venus GX / Color Control / Octo GX) on your LAN to cross-check the install configuration against the battery's actual state. Read-only over Modbus TCP — the tool never writes to the Cerbo.</p>
+        <div class="row">
+            <select id="cerbo-host-select">
+                <option value="">Select Cerbo…</option>
+            </select>
+            <button id="btn-cerbo-discover" type="button" title="Re-scan the LAN for Cerbo / Venus GX devices">↻ Scan</button>
+            <input id="cerbo-host-manual" type="text" placeholder="…or enter IP manually (e.g. 192.168.1.50)" autocomplete="off">
+            <button id="btn-cerbo-connect" type="button">Connect to Cerbo</button>
+            <button id="btn-cerbo-disconnect" type="button" disabled>Disconnect</button>
+        </div>
+        <p class="muted">If the dropdown is empty after a scan, mDNS is blocked on your network — type the IP directly in the box. For a direct laptop-to-Cerbo Ethernet cable, the manual IP is the path.</p>
+        <div id="cerbo-status" class="status">No Cerbo connected.</div>
+
+        <div id="crosscheck-results" class="crosscheck-results hidden">
+            <h3>Cross-checks</h3>
+            <div id="crosscheck-list"></div>
+            <p class="muted"><button id="btn-crosscheck-refresh" type="button" class="secondary">↻ Refresh cross-checks</button></p>
+        </div>
+    </section>
+
     <!-- Step 5: Console passthrough -->
     <section class="card console-card hidden" id="console-section">
         <h2>5. Console passthrough <span class="muted">(advanced)</span></h2>
