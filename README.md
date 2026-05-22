@@ -53,10 +53,10 @@ It does this by using the Pylontech BMS's own native console interface — the s
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/rack-overview-mobile.png" alt="Rack overview on mobile — 10 packs online, rack discharging at 1.35 kW" width="320">
+  <img src="docs/screenshots/rack-overview-mobile.png" alt="Rack overview on mobile" width="320">
 </p>
 
-*Tool running on a Raspberry Pi (always-on diagnostic node), viewed from a phone over the LAN. 10-pack rack online, discharging at 1.35 kW.*
+*Tool running on a Raspberry Pi (always-on diagnostic node), viewed from a phone over the LAN.*
 
 A redacted **sample health report** is at [`docs/SAMPLE-REPORT.md`](docs/SAMPLE-REPORT.md) so you can see the format before installing.
 
@@ -77,7 +77,7 @@ That's it. See [Install](#install) and [Run](#run) below for the one-time setup.
 
 - **Pylontech US3000C** — 48 V, 15-cell, ~3.5 kWh, with stock BMS firmware (the `info` command reports a `B69`-series main software version). Verified.
 - **Pylontech US5000** — 48 V, 15-cell, ~4.8 kWh, B69-series firmware. Verified.
-- **Pylontech US2000B** (model code `US2KBPL`, `PHANTOMSA` board, `B65`-series firmware) — 48 V, 15-cell, 50 Ah. Verified on a 3-pack rack.
+- **Pylontech US2000B** (model code `US2KBPL`, `PHANTOMSA` board, `B65`-series firmware) — 48 V, 15-cell, 50 Ah. Verified.
 - **Other Pylontech models** (US2000, US2000C, Force-L1, Force-L2) — probably parse, not verified. If you try one, please [open an issue](#contributing--bug-reports) with the output of `info` and any failing command so the parsers can be adjusted.
 
 ---
