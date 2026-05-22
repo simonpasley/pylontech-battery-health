@@ -266,7 +266,7 @@ For how to read a result and sensible next steps, see [`docs/UNDERSTANDING-RESUL
 
 - **Console mode only.** No protocol/CAN/network fallback. Console mode is the only one that exposes the per-cell SOH counters, real cycle count, and event log.
 - **Per-cell SOH counters and event log do not propagate via the master's comm bus** when querying slave packs. For maximum detail on a specific pack, plug the cable directly into that pack's console port and re-run.
-- **Verdict has two diagnostic modes.** **Under load** (|I| ≥ 0.2 A, SOC 15–92 %, temp > 5 °C): cell-spread thresholds 30 / 50 mV. **Idle on the LFP plateau** (|I| < 0.2 A, SOC 10–85 %, temp > 5 °C): tighter thresholds 20 / 40 mV, because at rest LFP cells should sit closer together than under load. Outside either window (CV-tail, near-empty, or cold) the tool returns UNKNOWN with a re-test hint rather than risking a false FAIL.
+- **Verdict has two diagnostic modes.** **Under load** (|I| ≥ 0.2 A, SOC 15–95 %, temp > 5 °C): cell-spread thresholds 30 / 50 mV. **Idle on the LFP plateau** (|I| < 0.2 A, SOC 10–85 %, temp > 5 °C): tighter thresholds 20 / 40 mV, because at rest LFP cells should sit closer together than under load. Outside either window (CV-tail, near-empty, or cold) the tool returns UNKNOWN with a re-test hint rather than risking a false FAIL.
 - **US3000C / US5000 firmware (B69-series) verified.** Other Pylontech models may need parser tweaks. PRs welcome.
 - macOS uses `/dev/cu.*` ports (avoiding the `/dev/tty.*` DCD-wait deadlock).
 

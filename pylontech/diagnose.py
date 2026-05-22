@@ -39,9 +39,18 @@ IDLE_SPREAD_DEGRADING_MAX = 40
 # mechanically rather than indicating real imbalance.
 VALID_MIN_CURRENT_MA = 200       # |I| >= 0.2 A separates "loaded" from "idle"
 VALID_SOC_MIN = 15               # %  — loaded-mode window lower bound
-VALID_SOC_MAX = 92               # %  — loaded-mode window upper bound
+VALID_SOC_MAX = 95               # %  — loaded-mode window upper bound (was 92;
+                                  #     the CV-tail concern primarily applies
+                                  #     during active charging near 100 % SOC,
+                                  #     not during discharge at 93-95 %, so the
+                                  #     stricter cap threw away diagnostic data
+                                  #     from real-world racks that sit at high
+                                  #     SOC most of the day)
 IDLE_SOC_MIN = 10                # %  — idle-mode window lower bound
-IDLE_SOC_MAX = 85                # %  — idle-mode window upper bound (avoid CV tail)
+IDLE_SOC_MAX = 85                # %  — idle-mode window upper bound (kept
+                                  #     tight; idle measurements approaching
+                                  #     full charge ARE near post-CV recovery
+                                  #     and can show legitimate cell scatter)
 VALID_TEMP_MIN_MC = 5000         # 5 °C in milli-celsius — applies to both modes
 
 
