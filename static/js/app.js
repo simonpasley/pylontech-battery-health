@@ -77,8 +77,8 @@ function setConnected(yes, port) {
   $('rack-section').classList.toggle('hidden', !yes);
   $('diagnose-section').classList.toggle('hidden', !yes);
   $('eventlog-section').classList.toggle('hidden', !yes);
-  $('cerbo-section').classList.toggle('hidden', !yes);
   $('console-section').classList.toggle('hidden', !yes);
+  syncCerboSectionVisibility();
   if (yes) {
     setStatus(`Connected to ${port}.`, 'connected');
     refreshRack();
@@ -90,6 +90,15 @@ function setConnected(yes, port) {
     $('rack-totals').classList.add('hidden');
     _packModelByAddress = {};
   }
+}
+
+// Cerbo section visibility is driven by *either* source being connected,
+// not strictly gated on the battery. Otherwise a user with a Cerbo already
+// running in the backend (e.g. mid-session) sees the page as if nothing
+// landed.
+function syncCerboSectionVisibility() {
+  const visible = connected || _cerboConnected;
+  $('cerbo-section').classList.toggle('hidden', !visible);
 }
 
 async function connectClicked() {
@@ -692,6 +701,7 @@ function setCerboConnected(yes, host) {
   $('btn-cerbo-disconnect').disabled = !yes;
   $('cerbo-host-select').disabled = yes;
   $('cerbo-host-manual').disabled = yes;
+  syncCerboSectionVisibility();
   if (yes) {
     setCerboStatus(`Connected to Cerbo at ${host}.`, 'connected');
     refreshCrosschecks();
@@ -828,6 +838,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Pre-populate Cerbo discovery once the page loads so the dropdown
   // isn't empty when the battery connection completes.
   discoverCerbos();
+  // If the backend already has a Cerbo session active from a previous
+  // tab/session, surface it on page load so the user doesn't have to
+  // reconnect or open a battery session just to see the Cerbo panel.
+  refreshCerboStatus();
 });
 
 // expose for inline onclick
