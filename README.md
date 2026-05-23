@@ -50,6 +50,14 @@ It does this by using the Pylontech BMS's own native console interface — the s
 
 ---
 
+## Optional: Cerbo GX cross-checks
+
+If you have a Victron Cerbo GX (or any Venus OS device — Venus GX, Color Control, Octo GX) on the same LAN, the tool can read its DVCC settings and BMS-relayed values over **Modbus TCP** and cross-check them against the battery's direct serial readings. This catches install-config issues that no single-source tool can — for example: a DVCC charge-voltage cap set below the BMS-requested voltage (suppressing cell balancing), SOC divergence between the BMS and the Cerbo (CAN comms gap), Cerbo not receiving battery data when the BMS is responding fine on the serial side, or a pack reading DEGRADING on cell-imbalance where the install config is actually the cause rather than the pack itself.
+
+The Cerbo connection is **read-only** (the tool never writes to a Cerbo's settings) and **fully optional** — the battery-side diagnostic works on its own. Discovery is via mDNS (`venus.local`) with manual IP fallback for direct-cable or VPN/Tailscale scenarios.
+
+---
+
 ## Screenshots
 
 <p align="center">
