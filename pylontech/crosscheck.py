@@ -94,26 +94,16 @@ def run_crosschecks(
         return report
 
     # We have a Cerbo. Even with no battery serial connection, the DVCC
-    # summary is useful on its own — and we want to tell the user clearly
-    # if we can't verify the connected BMS is Pylontech.
+    # summary + alarm surfacing are useful on their own.
     if not report.has_battery_data:
         cerbo_sees_battery = (
             cerbo.battery.voltage_v is not None or
             cerbo.battery.soc_percent is not None
         )
         if cerbo_sees_battery:
-            report.results.append(CrossCheckResult(
-                id="bms_brand_unverified",
-                title="Connected BMS brand not verified",
-                severity=SEVERITY_WARNING,
-                detail=(
-                    "The Cerbo is communicating with a BMS, but no direct battery serial "
-                    "connection is active so we can't verify it's a Pylontech. "
-                    "Pylontech-specific cross-checks are skipped until a direct serial "
-                    "connection is added."
-                ),
-                suggestion="Plug a USB-RS232 console cable into the battery's master pack to enable the full cross-check set.",
-            ))
+            brand_result = _check_brand_unverified(cerbo)
+            if brand_result:
+                report.results.append(brand_result)
         else:
             report.results.append(CrossCheckResult(
                 id="cerbo_no_battery_service",
@@ -125,8 +115,9 @@ def run_crosschecks(
                 ),
                 suggestion="Check the CAN cable between battery and Cerbo (must be Victron Type A or B for Pylontech, not the Pylontech-bundled cable) and the master pack's DIP switches (must be 000).",
             ))
-        # Still useful to emit the DVCC summary even without battery side.
         report.results.append(_check_dvcc_summary(cerbo))
+        alarms = _check_cerbo_alarms(cerbo)
+        if alarms: report.results.append(alarms)
         return report
 
     # Full path — we have both. Run all v1 checks.
@@ -141,9 +132,82 @@ def run_crosschecks(
     soc = _check_soc_parity(diagnoses, cerbo)
     if soc: report.results.append(soc)                                          # #4
 
+    alarms = _check_cerbo_alarms(cerbo)                                         # #5
+    if alarms: report.results.append(alarms)
+
     report.results.extend(_check_imbalance_attribution(diagnoses, cerbo))       # #7
 
     return report
+
+
+def _check_brand_unverified(cerbo: CerboReadings) -> Optional[CrossCheckResult]:
+    """When the Cerbo is seeing a BMS but we have no direct serial, try to
+    name the brand from /ConnectionInformation. If empty, flag as
+    unverifiable rather than guessing Pylontech."""
+    info = (cerbo.battery.connection_info or "").strip()
+    if "pylon" in info.lower():
+        return CrossCheckResult(
+            id="bms_brand_via_cerbo",
+            title="Pylontech BMS detected via Cerbo",
+            severity=SEVERITY_INFO,
+            detail=(
+                f"The Cerbo's /ConnectionInformation reports {info!r}, which identifies "
+                f"the connected BMS as Pylontech. Pylontech-specific cross-checks will run "
+                f"once a direct serial connection is added for the deeper per-cell view."
+            ),
+        )
+    if info:
+        return CrossCheckResult(
+            id="bms_brand_unverified",
+            title="Non-Pylontech BMS detected",
+            severity=SEVERITY_WARNING,
+            detail=(
+                f"The Cerbo reports the connected BMS as {info!r}. This tool's cross-checks "
+                f"are validated against Pylontech only; behaviour against other BMSes is "
+                f"not guaranteed."
+            ),
+            suggestion="Treat any Pylontech-specific suggestions with caution and rely on your BMS vendor's official tooling for definitive checks.",
+        )
+    return CrossCheckResult(
+        id="bms_brand_unverified",
+        title="Connected BMS brand not verified",
+        severity=SEVERITY_WARNING,
+        detail=(
+            "The Cerbo is communicating with a BMS, but its /ConnectionInformation "
+            "register is empty (common for Pylontech) so we can't confirm the brand "
+            "from Modbus alone. Pylontech-specific cross-checks are skipped until a "
+            "direct serial connection is added."
+        ),
+        suggestion="Plug a USB-RS232 console cable into the battery's master pack to enable the full cross-check set.",
+    )
+
+
+def _check_cerbo_alarms(cerbo: CerboReadings) -> Optional[CrossCheckResult]:
+    """#5 (light): surface any active battery alarms the Cerbo is seeing.
+
+    Only emits a result if at least one alarm is active. Severity reflects
+    the most serious alarm in the list (internal failure / voltage / temp
+    are ALERT; SOC / current limits are WARNING; everything else INFO).
+    """
+    alarms = cerbo.battery.alarms_active
+    if not alarms:
+        return None
+    # Severity ranking based on the words in the alarm names
+    high_severity = ("Internal failure", "High voltage", "Low voltage",
+                     "High temperature", "Low temperature", "Cell imbalance")
+    severity = SEVERITY_INFO
+    if any(any(h in a for h in high_severity) for a in alarms):
+        severity = SEVERITY_ALERT
+    elif any("SOC" in a or "current" in a.lower() for a in alarms):
+        severity = SEVERITY_WARNING
+    return CrossCheckResult(
+        id="cerbo_alarms",
+        title="Battery alarms reported by Cerbo",
+        severity=severity,
+        detail="The Cerbo is reporting the following BMS alarm(s) over CAN: "
+               + "; ".join(alarms) + ".",
+        suggestion="Investigate each alarm in turn — start with the per-pack diagnostic (Diagnose button on the rack-overview table) to see the matching BMS-direct readings.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -157,15 +221,15 @@ def _check_dvcc_summary(cerbo: CerboReadings) -> CrossCheckResult:
         parts.append("no charge-voltage cap (BMS-native target in effect)")
     else:
         parts.append(f"charge-voltage cap {cerbo.dvcc.max_charge_voltage_v:.1f} V")
-    if cerbo.dvcc.confidence == "best-effort":
-        suffix = " (DVCC current-cap fields still being verified against the Victron register doc — treat as informational only)"
+    if cerbo.dvcc.max_charge_current_a is None:
+        parts.append("no system charge-current cap")
     else:
-        suffix = ""
+        parts.append(f"system charge-current cap {cerbo.dvcc.max_charge_current_a:.0f} A")
     return CrossCheckResult(
         id="dvcc_summary",
         title="DVCC configuration",
         severity=SEVERITY_INFO,
-        detail="DVCC is configured with " + "; ".join(parts) + "." + suffix,
+        detail="DVCC is configured with " + "; ".join(parts) + ".",
     )
 
 

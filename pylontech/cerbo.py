@@ -43,6 +43,21 @@ UNIT_ID_SYSTEM = 100
 UNIT_ID_BATTERY = 225
 UNIT_ID_VEBUS = 246
 
+# Battery-service alarm registers (com.victronenergy.battery on unit 225).
+# Each is uint16: 0 = OK, 1 = Warning, 2 = Alarm.
+# Addresses verified against Victron CCGX Modbus register list v3.73.
+_BATTERY_ALARM_REGISTERS = (
+    (268, "Low voltage"),
+    (269, "High voltage"),
+    (272, "Low SOC"),
+    (273, "Low temperature"),
+    (274, "High temperature"),
+    (320, "High charge current"),
+    (321, "High discharge current"),
+    (322, "Cell imbalance"),
+    (323, "Internal failure"),
+)
+
 
 # ---------------------------------------------------------------------------
 # Data classes — what we extract from a Cerbo, in normalised form.
@@ -62,16 +77,19 @@ class DvccConfig:
     """DVCC (Distributed Voltage and Current Control) settings.
 
     Install-side policy: what the user/installer has configured the Cerbo
-    to do regardless of what the BMS asks. Fields marked Optional may be
-    None if the corresponding read failed or returned a "not set" sentinel
-    (0xFFFF / 65535) which Venus OS uses to mean "no user override".
+    to do regardless of what the BMS asks. Fields are None when the
+    corresponding read failed or returned a "not set" sentinel:
+
+      - reg 2705 "DVCC system max charge current" is int16; value -1
+        (0xFFFF as uint16) means "disabled" (no charge-current cap).
+      - reg 2710 "Limit managed battery voltage" is uint16 scale 10;
+        value 0 means "not set" (no charge-voltage cap).
+
+    Register addresses verified against the official Victron CCGX
+    Modbus TCP register list v3.73 (Field list sheet).
     """
-    enabled: Optional[bool] = None
-    max_charge_voltage_v: Optional[float] = None   # "Limit managed battery charge voltage" cap (None = no cap)
-    max_charge_current_a: Optional[float] = None   # "Limit managed charge current" (None = no cap)
-    max_discharge_current_a: Optional[float] = None
-    confidence: str = "best-effort"   # "verified" / "best-effort" / "unknown"
-    raw_block: list[int] = field(default_factory=list)  # 2700-2718 raw register dump for debug
+    max_charge_voltage_v: Optional[float] = None    # reg 2710; None = no cap configured
+    max_charge_current_a: Optional[float] = None    # reg 2705; None = disabled
 
 
 @dataclass
@@ -80,16 +98,19 @@ class BatteryRelay:
 
     Distinct from BMS-direct readings (which come from the serial console
     client). Cross-checks compare the two sources.
+
+    Register addresses verified against Victron CCGX Modbus register
+    list v3.73.
     """
-    soc_percent: Optional[float] = None
-    voltage_v: Optional[float] = None
-    current_a: Optional[float] = None         # signed: + = charging, - = discharging
-    temperature_c: Optional[float] = None
-    requested_cvl_v: Optional[float] = None   # BMS-requested Charge Voltage Limit (None = no active request)
-    requested_ccl_a: Optional[float] = None   # BMS-requested Charge Current Limit
-    requested_dcl_a: Optional[float] = None   # BMS-requested Discharge Current Limit
-    product_name: str = ""                    # often blank from the BMS service register
-    is_pylontech: Optional[bool] = None       # heuristic; None until detection lands in chunk 3
+    soc_percent: Optional[float] = None            # reg 266, uint16 /10
+    voltage_v: Optional[float] = None              # reg 259, uint16 /100
+    current_a: Optional[float] = None              # reg 261, int16  /10  (signed; + = charging, - = discharging)
+    temperature_c: Optional[float] = None          # reg 262, int16  /10
+    requested_cvl_v: Optional[float] = None        # reg 305, uint16 /10  — BMS-requested CVL (None = no active request)
+    requested_ccl_a: Optional[float] = None        # reg 307, uint16 /10  — BMS-requested CCL
+    requested_dcl_a: Optional[float] = None        # reg 308, uint16 /10  — BMS-requested DCL
+    alarms_active: list[str] = field(default_factory=list)   # human-readable list of any non-zero alarms
+    connection_info: str = ""                      # reg 1328 (/ConnectionInformation, string[8])
 
 
 @dataclass
@@ -263,7 +284,8 @@ class CerboClient:
                 chars.append(chr(r & 0xFF))
             info.serial = "".join(c for c in chars if c.isprintable()).strip()
 
-        # Battery service (unit 225) — verified register set.
+        # Battery service (unit 225) — register addresses verified against
+        # Victron CCGX Modbus register list v3.73.
         battery = BatteryRelay()
         v = self._reg(259, UNIT_ID_BATTERY)
         if v is not None:
@@ -277,18 +299,42 @@ class CerboClient:
         soc = self._reg(266, UNIT_ID_BATTERY)
         if soc is not None:
             battery.soc_percent = soc / 10.0
+        # CVL is reg 305 (/Info/MaxChargeVoltage). 0 = BMS not currently
+        # requesting a specific charge voltage (typical when discharging).
+        cvl = self._reg(305, UNIT_ID_BATTERY)
+        if cvl is not None and cvl != 0:
+            battery.requested_cvl_v = cvl / 10.0
         ccl = self._reg(307, UNIT_ID_BATTERY)
         if ccl is not None:
-            battery.requested_ccl_a = _s16(ccl) / 10.0
+            battery.requested_ccl_a = ccl / 10.0
         dcl = self._reg(308, UNIT_ID_BATTERY)
         if dcl is not None:
-            battery.requested_dcl_a = _s16(dcl) / 10.0
-        cvl = self._reg(309, UNIT_ID_BATTERY)
-        if cvl is not None and cvl != 0:
-            # 0 = BMS not currently requesting a specific CVL (e.g. discharging)
-            battery.requested_cvl_v = cvl / 10.0
+            battery.requested_dcl_a = dcl / 10.0
 
-        # System summary (unit 100) — verified.
+        # Battery alarm registers (unit 225). Each is uint16 where 0 = OK,
+        # 1 = Warning, 2 = Alarm. We record any non-zero alarm by its
+        # human-readable name.
+        for reg, name in _BATTERY_ALARM_REGISTERS:
+            value = self._reg(reg, UNIT_ID_BATTERY)
+            if value is not None and value > 0:
+                battery.alarms_active.append(
+                    name + (" (warning)" if value == 1 else "")
+                )
+
+        # /ConnectionInformation (reg 1328, string[8]). For Pylontech BMSes
+        # this is typically empty; some other vendors populate it. Used as
+        # a best-effort brand hint when there's no direct serial connection.
+        conn_regs = self._read(1328, 8, UNIT_ID_BATTERY)
+        if conn_regs:
+            chars = []
+            for r in conn_regs:
+                chars.append(chr((r >> 8) & 0xFF))
+                chars.append(chr(r & 0xFF))
+            battery.connection_info = "".join(
+                c for c in chars if c.isprintable()
+            ).strip()
+
+        # System summary (unit 100).
         system = SystemSummary()
         sv = self._reg(840, UNIT_ID_SYSTEM)
         if sv is not None:
@@ -303,27 +349,20 @@ class CerboClient:
         if ssoc is not None:
             system.soc_percent = float(ssoc)
 
-        # DVCC settings — best-effort. The 2700-block contains the DVCC
-        # cap settings; precise field mapping needs verification against
-        # the Victron published register list before being trusted for
-        # cross-checks. We capture the raw block for debug + interpret the
-        # registers we're confident about.
-        dvcc = DvccConfig(confidence="best-effort")
-        dvcc_regs = self._read(2700, 19, UNIT_ID_SYSTEM)
-        if dvcc_regs:
-            dvcc.raw_block = dvcc_regs
-            # Reg 2705 (offset 5) = "Limit managed charge voltage" cap.
-            # 65535 / 0xFFFF = sentinel meaning "no cap".
-            cap_v = _none_if_sentinel(dvcc_regs[5])
-            if cap_v is not None:
-                dvcc.max_charge_voltage_v = cap_v / 10.0
-            # Reg 2706 = "Limit managed charge current" (current cap, A).
-            cap_ci = _none_if_sentinel(dvcc_regs[6])
-            if cap_ci is not None:
-                dvcc.max_charge_current_a = float(cap_ci)
-            # Reg 2713-2714 also appear as 65535 (not set) on this Cerbo
-            # — may be additional DVCC bounds. Leaving as raw_block only
-            # for now; will refine in chunk 3 once cross-check needs them.
+        # DVCC settings (unit 100), addresses verified:
+        #   reg 2705 = DVCC system max charge current (int16, A, -1 = disabled)
+        #   reg 2710 = Limit managed battery voltage (uint16 /10, V, 0 = not set)
+        dvcc = DvccConfig()
+        cap_i_raw = self._reg(2705, UNIT_ID_SYSTEM)
+        if cap_i_raw is not None:
+            signed = _s16(cap_i_raw)
+            if signed >= 0:
+                dvcc.max_charge_current_a = float(signed)
+            # else: -1 means disabled; leave field as None
+        cap_v_raw = self._reg(2710, UNIT_ID_SYSTEM)
+        if cap_v_raw is not None and cap_v_raw > 0:
+            dvcc.max_charge_voltage_v = cap_v_raw / 10.0
+        # else: 0 means "not set" / no cap configured; field stays None
 
         return CerboReadings(
             info=info,
