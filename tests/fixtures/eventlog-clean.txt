@@ -1,0 +1,239 @@
+# Pylontech full event-log dump
+# Captured:        2026-10-19T16:21:29
+# Tool:            pylontech-battery-health
+# Barcode:         TEST0000C0000001
+# Pack address:    9
+# Model:           US3000C
+# Release date:    21-12-27
+#
+# Method: Pylontech native console `log` command, paged with CR
+# until the 'Press [Enter] to be continued' prompt no longer
+# appears (end of log).
+#
+# === info ===
+info
+@
+Device address      : 9
+Manufacturer        : Pylon
+Device name         : US3000C
+Board version       : V10R04
+Board               : NF4.E2
+Main Soft version   : B69.12.0.0
+Soft  version       : V1.3
+Boot  version       : V1.0
+Comm version        : V2.0
+Release Date        : 21-12-27
+Barcode             : TEST0000C0000001
+
+Specification       : 48V/74AH
+Cell Number         : 15
+Max Dischg Curr     : -90000mA
+Max Charge Curr     : 90000mA
+EPONPort rate       : 1200
+Console Port rate   : 115200
+Command completed successfully
+$$
+pylon>
+
+# === log (full) ===
+log
+@
+ Index   : 31    
+ Time    : 26-10-19 22:37:53
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 30    
+ Time    : 26-10-19 22:33:09
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 29    
+ Time    : 26-10-19 22:32:41
+ ModID   : BMM
+ Code    : c53d
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 28    
+ Time    : 26-10-19 22:31:59
+ ModID   : BMM
+ Code    : c53c
+ Info    : The device start charging. 
+
+ Index   : 27    
+ Time    : 26-10-19 22:21:11
+ ModID   : BMM
+ Code    : c53b
+ Info    : The device start charging. 
+
+ Index   : 26    
+ Time    : 26-10-19 22:19:51
+ ModID   : BMM
+ Code    : c53a
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 25    
+ Time    : 26-10-19 22:19:31
+ ModID   : BMM
+ Code    : c539
+ Info    : The device start charging. 
+
+ Index   : 24    
+ Time    : 26-10-19 22:18:45
+ ModID   : BMM
+ Code    : c538
+ Info    : The device start charging. 
+
+ Index   : 23    
+ Time    : 26-10-19 22:18:33
+ ModID   : BMM
+ Code    : c537
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 22    
+ Time    : 26-10-19 22:18:21
+ ModID   : BMM
+ Code    : c536
+ Info    : The device start charging. 
+
+ Index   : 21    
+ Time    : 26-10-19 22:16:23
+ ModID   : BMM
+ Code    : c535
+ Info    : The device start charging. 
+
+ Index   : 20    
+ Time    : 26-10-19 22:15:05
+ ModID   : BMM
+ Code    : c534
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 19    
+ Time    : 26-10-19 22:09:59
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 18    
+ Time    : 26-10-19 22:09:55
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 17    
+ Time    : 26-10-19 21:44:17
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 16    
+ Time    : 26-10-19 21:44:03
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 15    
+ Time    : 26-10-19 21:43:51
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 14    
+ Time    : 26-10-19 21:40:25
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 13    
+ Time    : 26-10-19 21:40:17
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 12    
+ Time    : 26-10-19 21:29:49
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 11    
+ Time    : 26-10-19 21:24:11
+ ModID   : BMM
+ Code    : c533
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 10    
+ Time    : 26-10-19 21:22:37
+ ModID   : BMM
+ Code    : c532
+ Info    : The device start charging. 
+
+ Index   : 9     
+ Time    : 26-10-19 21:16:37
+ ModID   : BMM
+ Code    : c531
+ Info    : The device start charging. 
+
+ Index   : 8     
+ Time    : 26-10-19 21:14:31
+ ModID   : BMM
+ Code    : c530
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 7     
+ Time    : 26-10-19 21:14:25
+ ModID   : BMM
+ Code    : c52f
+ Info    : The device start charging. 
+
+ Index   : 6     
+ Time    : 26-10-19 21:14:17
+ ModID   : BMM
+ Code    : c52e
+ Info    : The device start charging. 
+
+ Index   : 5     
+ Time    : 26-10-19 21:14:03
+ ModID   : BMM
+ Code    : c52d
+ Info    : The device start charging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 4     
+ Time    : 26-10-19 21:13:37
+ ModID   : BMM
+ Code    : c52c
+ Info    : The device start charging. 
+
+ Index   : 3     
+ Time    : 26-10-19 21:07:59
+ ModID   : BMM
+ Code    : c52b
+ Info    : The device start charging. 
+
+ Index   : 2     
+ Time    : 26-10-19 19:38:07
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+Press [Enter] to be continued,other key to exit                                                  
+ Index   : 1     
+ Time    : 26-10-19 19:37:59
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+ Index   : 0     
+ Time    : 26-10-19 19:37:55
+ ModID   : BMM
+ Code    : 0
+ Info    : The device start discharging. 
+
+Command completed successfully
+$$
+pylon>
+# === dump_event_log finished ===
+# pages: 11
+# elapsed: 38.7 s
+# stop reason: end-of-log (no more-prompt)
