@@ -27,6 +27,11 @@ from pylontech.diagnose import PackDiagnosis, diagnose_pack, parse_info, scan_ra
 from pylontech.report import generate_report, generate_rack_report
 from pylontech.cerbo import CerboClient, CerboReadings, discover_cerbos
 from pylontech.crosscheck import run_crosschecks
+from pylontech.eventlog import (
+    render_summary_filehead,
+    summarise_event_log,
+    summary_to_dict,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -339,6 +344,7 @@ def _new_job(kind: str) -> dict:
         'text': None,
         'filename': '',
         'barcode': '',
+        'summary': None,
     }
     with jobs_lock:
         jobs[job['id']] = job
@@ -385,10 +391,24 @@ def _start_dump_job(kind: str, dump_fn, header_fn) -> dict:
             with serial_lock:
                 text = dump_fn(progress_cb=lambda p, t: _job_progress(job, p, t))
             header = header_fn(info, info_text)
-            full = header + text
+            # For event-log dumps, parse the raw log into a plain-English
+            # verdict: show it in the UI and lead the downloaded file with it
+            # so an RMA reviewer sees "FAULT: 2x under-voltage trip" before a
+            # single raw line. Never let a summariser error break the dump.
+            summary_dict = None
+            summary_head = ''
+            if kind == 'eventlog':
+                try:
+                    s = summarise_event_log(text)
+                    summary_dict = summary_to_dict(s)
+                    summary_head = render_summary_filehead(s) + '\n'
+                except Exception:
+                    logger.exception('event-log summariser failed (dump kept)')
+            full = summary_head + header + text
             safe_id = barcode.replace(' ', '_')
             with jobs_lock:
                 job['text'] = full
+                job['summary'] = summary_dict
                 job['filename'] = f'pylontech-{kind}-{safe_id}-{date.today().isoformat()}.txt'
                 job['done'] = True
                 job['updated_at'] = time.time()
@@ -482,6 +502,7 @@ def api_job_status(job_id):
             'error': job['error'],
             'filename': job['filename'],
             'barcode': job['barcode'],
+            'summary': job.get('summary'),
             'elapsed': time.time() - job['started_at'],
         })
 

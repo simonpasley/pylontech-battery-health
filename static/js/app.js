@@ -610,6 +610,7 @@ async function startDump(kind) {
   btnLog.disabled = true;
   btnHist.disabled = true;
   $('dump-progress').classList.remove('hidden');
+  $('dump-summary').classList.add('hidden');   // clear any previous summary
   const bar = $('dump-bar');
   bar.className = 'progress-fill indeterminate';
   bar.style.width = '40%';
@@ -649,6 +650,7 @@ async function pollDumpJob(jobId, packId) {
       // the user can see at a glance that it's stamped correctly.
       const stampedName = (s.filename || '').replace(/(pylontech-(?:eventlog|eventhistory)-)/, `$1pack${packId}-`);
       $('dump-detail').textContent = `Complete — ${s.pages} item(s) captured. Downloading ${stampedName}…`;
+      renderDumpSummary(s.summary);
       window.location.assign(`/api/job/${jobId}/download?pack=${packId}`);
       return;
     }
@@ -665,6 +667,44 @@ async function pollDumpJob(jobId, packId) {
     }
     await new Promise(r => setTimeout(r, 500));
   }
+}
+
+// Render the plain-English event-log summary returned with a finished dump.
+// `summary` is null for event-history dumps (only event-log is parsed).
+function renderDumpSummary(summary) {
+  const box = $('dump-summary');
+  if (!summary) { box.classList.add('hidden'); return; }
+
+  const ICONS = { critical: '🔴', notable: '🟡', info: '🟢' };
+  const headline = $('dump-summary-headline');
+  headline.textContent = `${ICONS[summary.severity] || ''} ${summary.headline}`;
+  headline.className = 'dump-summary-headline sev-' + summary.severity;
+
+  $('dump-summary-window').textContent = summary.window || '';
+
+  const details = $('dump-summary-details');
+  details.innerHTML = '';
+  (summary.details || []).forEach(d => {
+    const li = document.createElement('li');
+    li.textContent = d;
+    details.appendChild(li);
+  });
+
+  const events = $('dump-summary-events');
+  events.innerHTML = '';
+  if ((summary.critical || []).length) {
+    const h = document.createElement('div');
+    h.className = 'muted';
+    h.textContent = 'Key events:';
+    events.appendChild(h);
+    summary.critical.forEach(e => {
+      const row = document.createElement('div');
+      row.className = 'dump-summary-event';
+      row.textContent = `[${e.time}] ${e.label} (code ${e.code})`;
+      events.appendChild(row);
+    });
+  }
+  box.classList.remove('hidden');
 }
 
 async function sendConsole() {

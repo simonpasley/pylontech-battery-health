@@ -279,6 +279,32 @@ details pre {
   border: 1px solid var(--grey-200);
   border-radius: 6px;
 }
+.dump-summary {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--grey-200);
+  border-left-width: 4px;
+}
+.dump-summary-headline {
+  font-weight: 600;
+  font-size: 1.05em;
+  margin-bottom: 4px;
+}
+.dump-summary.hidden { display: none; }
+.dump-summary-headline.sev-critical { color: var(--red); }
+.dump-summary-headline.sev-notable  { color: var(--amber); }
+.dump-summary-headline.sev-info     { color: var(--green); }
+.dump-summary:has(.sev-critical) { border-left-color: var(--red);   background: var(--red-light); }
+.dump-summary:has(.sev-notable)  { border-left-color: var(--amber); background: var(--amber-light); }
+.dump-summary:has(.sev-info)     { border-left-color: var(--green); background: var(--green-light); }
+.dump-summary ul { margin: 6px 0; padding-left: 20px; }
+.dump-summary li { margin: 2px 0; }
+.dump-summary-event {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  margin: 1px 0;
+}
 .progress-row {
   display: flex;
   justify-content: space-between;
