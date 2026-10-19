@@ -43,8 +43,9 @@ Search terms this project covers: *Pylontech BatteryView alternative, Pylontech 
 - Identifies the **weakest cell** automatically (when the spread is meaningful)
 - Reports the **BMS-calculated State of Health**, real cycle count, and per-cell SOH-abnormal counters
 - Generates a **clean one-click health report** (Markdown + browser PDF) you can save for your records or share with your installer
-- Captures the **full event log** straight off the BMS for closer inspection
+- Captures the **full event log** straight off the BMS for closer inspection — and now summarises it in **plain English** ("🔴 2× under-voltage trip, self-restarted twice" vs "🟢 normal cycling only") so you don't have to read the raw log by hand
 - **Whole-rack scan** — plug into the master and let it diagnose every pack with a progress bar
+- **Auto-fills the Pylontech RMA paperwork** — generates the official Initial Diagnosis and Collection Request forms from the scan, with serials, model, production date, pack voltage and an auto-written fault description (see [RMA forms](#rma-forms-auto-fill-the-warranty-paperwork))
 
 It does this by using the Pylontech BMS's own native console interface — the same data Pylontech's BatteryView software shows, just easier to read and runs everywhere.
 
@@ -254,6 +255,27 @@ Each diagnostic and rack scan can be downloaded as a Markdown report or opened a
 For each suspect pack, plug the cable directly into **that pack's** console port (the master's comm bus does not relay event-log queries to slaves), click **"Dump full event log"**, confirm the pack address in the popup, and the tool will produce a clearly-named text file.
 
 There's also a slower **"Dump full event history"** that walks every stored item with per-cell readings — much more detail, takes a few minutes.
+
+When you dump an event log, the tool now parses it and shows a **plain-English summary** above the raw output — a one-line verdict (colour-coded 🟢 / 🟡 / 🔴), the time window, and the key fault events (e.g. under-voltage trips, self-restarts). The same summary is written to the top of the downloaded `.txt` so whoever reads the file sees the verdict before a single raw line.
+
+### 7. RMA forms — auto-fill the warranty paperwork
+
+<a name="rma-forms-auto-fill-the-warranty-paperwork"></a>
+
+If a scan finds any **FAILED** packs, the tool can fill the official Pylontech RMA forms for you — the **Battery Initial Diagnosis Form** and the **Battery Collection Request** — straight from the scan data.
+
+One-time setup:
+
+1. Put your Pylontech template files in `~/.pylontech-health/templates/` named **`diagnosis.docx`** and **`collection.docx`**. (These are Pylontech's own, distributor-specific documents, so they live on your machine — they're not shipped with the tool.)
+2. Open section **5. RMA forms** in the app, expand **Installer details**, fill in your name / company / address / install date / inverter etc. and click **Save** — stored locally in `~/.pylontech-health/installer.json` and reused every time.
+
+Then, after a whole-rack scan, click **Generate RMA forms**. The tool fills:
+
+- every FAILED pack's **position, serial, model, production date and pack voltage**
+- an **auto-written fault description** built from the verdict reasons, enriched with the event-log summary for any pack you've dumped this session
+- your saved contact and installation details
+
+Physical-inspection fields it can't know (battery alarm state, blue residue/ingress) are marked **`(confirm on site)`** for you to complete. Review, sign, attach your event-log `.txt` and health-report PDF, and send.
 
 For more on what the numbers actually mean, see [`docs/INTERPRETATION.md`](docs/INTERPRETATION.md).
 For how to read a result and sensible next steps, see [`docs/UNDERSTANDING-RESULTS.md`](docs/UNDERSTANDING-RESULTS.md).

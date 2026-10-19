@@ -28,10 +28,14 @@ from pylontech.report import generate_report, generate_rack_report
 from pylontech.cerbo import CerboClient, CerboReadings, discover_cerbos
 from pylontech.crosscheck import run_crosschecks
 from pylontech.eventlog import (
+    history_summary_to_dict,
+    render_history_filehead,
     render_summary_filehead,
+    summarise_event_history,
     summarise_event_log,
     summary_to_dict,
 )
+from pylontech import rmaforms
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +49,11 @@ connection = ConnectionManager()
 console: Optional[PylonConsole] = None
 last_diagnoses: dict[int, PackDiagnosis] = {}
 last_rack_scan: dict = {'diagnoses': [], 'rack_raw': '', 'timestamp': None}
+# Event-log summaries from dumps this session, keyed by pack address — used to
+# enrich the auto-generated RMA fault description.
+last_eventlog_summaries: dict[int, dict] = {}
+# In-memory store of the most recently generated RMA .docx files.
+generated_rma: dict[str, tuple] = {}   # which -> (filename, bytes)
 
 # Background dump jobs
 jobs: dict[str, dict] = {}
@@ -402,8 +411,24 @@ def _start_dump_job(kind: str, dump_fn, header_fn) -> dict:
                     s = summarise_event_log(text)
                     summary_dict = summary_to_dict(s)
                     summary_head = render_summary_filehead(s) + '\n'
+                    # Stash by pack address so the RMA fault description can
+                    # cite the event log for this pack.
+                    if isinstance(address, int):
+                        last_eventlog_summaries[address] = summary_dict
                 except Exception:
                     logger.exception('event-log summariser failed (dump kept)')
+            elif kind == 'eventhistory':
+                try:
+                    h = summarise_event_history(text)
+                    summary_dict = history_summary_to_dict(h)
+                    summary_head = render_history_filehead(h) + '\n'
+                    # The per-cell voltage extremes are the strongest
+                    # over-voltage evidence — fold them into the RMA fault text
+                    # too (keep an event-log summary for this pack if richer).
+                    if isinstance(address, int) and address not in last_eventlog_summaries:
+                        last_eventlog_summaries[address] = summary_dict
+                except Exception:
+                    logger.exception('event-history summariser failed (dump kept)')
             full = summary_head + header + text
             safe_id = barcode.replace(' ', '_')
             with jobs_lock:
@@ -602,6 +627,87 @@ def api_scan_last():
         'timestamp': last_rack_scan['timestamp'],
         'packs': [asdict(d) for d in last_rack_scan['diagnoses']],
     })
+
+
+# ---------------------------------------------------------------------------
+# RMA forms — auto-fill the Pylontech warranty paperwork from the last scan
+# ---------------------------------------------------------------------------
+
+@app.route('/api/rma/status')
+def api_rma_status():
+    """Templates present? profile complete? how many failed packs to claim?"""
+    st = rmaforms.status()
+    st['profile_fields'] = [
+        {'key': k, 'label': lbl, 'placeholder': ph}
+        for k, lbl, ph in rmaforms.PROFILE_FIELDS
+    ]
+    failed = rmaforms.failed_packs(last_rack_scan['diagnoses'])
+    st['failed_packs'] = [
+        {'address': d.address, 'barcode': d.barcode, 'model': d.model}
+        for d in failed
+    ]
+    st['scanned'] = bool(last_rack_scan['diagnoses'])
+    st['available'] = sorted(generated_rma.keys())
+    return jsonify(st)
+
+
+@app.route('/api/rma/profile', methods=['POST'])
+def api_rma_profile():
+    data = request.get_json(silent=True) or {}
+    prof = rmaforms.save_profile(data)
+    return jsonify({'saved': True, 'profile': prof})
+
+
+@app.route('/api/rma/generate', methods=['POST'])
+def api_rma_generate():
+    diagnoses = last_rack_scan['diagnoses']
+    if not diagnoses:
+        return jsonify({'error': 'No rack scan yet — run a whole-rack scan first.'}), 409
+    if not rmaforms.failed_packs(diagnoses):
+        return jsonify({'error': 'No FAILED packs in the last scan — nothing to claim.'}), 409
+
+    st = rmaforms.status()
+    if not st['have_docx']:
+        return jsonify({'error': 'python-docx is not installed on this machine.'}), 500
+
+    profile = rmaforms.load_profile()
+    today = date.today().isoformat()
+    produced, errors = [], []
+
+    if st['diagnosis_template']:
+        try:
+            data = rmaforms.fill_diagnosis_form(diagnoses, profile, last_eventlog_summaries)
+            generated_rma['diagnosis'] = (f'Pylontech-Diagnosis-Form-{today}.docx', data)
+            produced.append('diagnosis')
+        except Exception as e:
+            logger.exception('diagnosis form fill failed')
+            errors.append(f'Diagnosis form: {e}')
+    if st['collection_template']:
+        try:
+            data = rmaforms.fill_collection_form(diagnoses, profile)
+            generated_rma['collection'] = (f'Pylontech-Collection-Request-{today}.docx', data)
+            produced.append('collection')
+        except Exception as e:
+            logger.exception('collection form fill failed')
+            errors.append(f'Collection form: {e}')
+
+    if not produced:
+        missing = 'No templates found — drop diagnosis.docx / collection.docx into ' + st['template_dir']
+        return jsonify({'error': '; '.join(errors) or missing}), 409
+    return jsonify({'produced': produced, 'errors': errors})
+
+
+@app.route('/api/rma/download/<which>')
+def api_rma_download(which):
+    item = generated_rma.get(which)
+    if not item:
+        return jsonify({'error': 'Not generated'}), 404
+    filename, data = item
+    return Response(
+        data,
+        mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 # ---------------------------------------------------------------------------

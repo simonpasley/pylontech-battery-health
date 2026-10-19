@@ -295,3 +295,169 @@ def summary_to_dict(s: EventLogSummary) -> dict:
             for e in s.critical[:8]
         ],
     }
+
+
+# =========================================================================== #
+# Event HISTORY (`data event`) — per-cell voltage / over-voltage analysis
+# =========================================================================== #
+#
+# The `data event` history stores each event WITH the 15 per-cell voltages and
+# the BMS's own per-cell Volt.State, plus item-level Bat Events flags:
+#   BOV = cell over-voltage protection trip   BHV = cell high-voltage warning
+#   BUV = cell under-voltage protection trip  BLV = cell low-voltage warning
+# This is the deepest evidence of an over-voltage spike — it shows the actual
+# voltage a cell reached, not just that a threshold was crossed.
+
+# A cell at/above this (mV) is into LFP high/over-voltage territory — used only
+# for headline wording; the authoritative flags are the BMS's own states below.
+CELL_HIGH_MV = 3600
+
+# Human labels for the item-level Bat Event flags we care about.
+_BAT_FLAG_LABEL = {
+    "BOV": "cell over-voltage protection trip",
+    "BHV": "cell high-voltage warning",
+    "BLV": "cell low-voltage warning",
+    "BUV": "cell under-voltage protection trip",
+}
+
+
+@dataclass
+class HistorySummary:
+    item_count: int = 0
+    span_start: Optional[datetime] = None
+    span_end: Optional[datetime] = None
+    max_cell_mv: int = 0
+    max_cell_num: Optional[int] = None
+    max_cell_time: str = ""
+    min_cell_mv: int = 0
+    min_cell_num: Optional[int] = None
+    max_pack_mv: int = 0
+    bat_events: dict = field(default_factory=dict)        # flag -> count
+    cell_state_counts: dict = field(default_factory=dict)  # Volt.State -> count
+    severity: str = INFO
+    headline: str = ""
+    details: list = field(default_factory=list)
+
+
+def summarise_event_history(text: str) -> HistorySummary:
+    """Scan a `data event` history dump for over/under-voltage evidence."""
+    h = HistorySummary()
+
+    # Item-level: timestamps, pack voltage, Bat Events flags.
+    times = []
+    item_count = 0
+    for block in re.split(r"-{10,}", text):
+        if "Item Index" not in block:
+            continue
+        item_count += 1
+        tm = re.search(r"Time\s*:\s*([\d\- :]+)", block)
+        if tm:
+            ts = _parse_time(tm.group(1).strip())
+            # Some BMS items carry a reset-clock default (e.g. year 2016/2000)
+            # from before the RTC was set — ignore those for the span so the
+            # window reads sensibly, but still count the event itself.
+            if ts and ts.year >= 2019:
+                times.append(ts)
+        pv = re.search(r"^\s*Voltage\s*:\s*(\d+)\s*mV", block, re.M)
+        if pv:
+            h.max_pack_mv = max(h.max_pack_mv, int(pv.group(1)))
+        # Match only the "Bat Events" line itself — anchor to line start/end
+        # (re.M) and use [ \t]* not \s* after the hex code, so a no-event
+        # "Bat Events : 0x0" line can't swallow the newline and capture the
+        # following "Bat Protect ENA : BOV BHV …" enable-mask (which lists
+        # every *possible* protection, not events that fired). Whitelist the
+        # four real battery-voltage flags as a second guard.
+        for be in re.finditer(r"^\s*Bat Events\s*:\s*\S+[ \t]*(.*)$", block, re.M):
+            for tok in be.group(1).split():
+                if tok in ("BOV", "BHV", "BLV", "BUV"):
+                    h.bat_events[tok] = h.bat_events.get(tok, 0) + 1
+    h.item_count = item_count
+    if times:
+        h.span_start, h.span_end = min(times), max(times)
+
+    # Per-cell rows (anywhere): idx volt curr tempr base voltstate ...
+    rows = re.findall(
+        r"^\s*(\d{1,2})\s+(\d{4})\s+(-?\d+)\s+(\d+)\s+(\w+)\s+(\w+)", text, re.M)
+    h.min_cell_mv = 10000
+    for cell, volt, _cur, _t, _base, vstate in rows:
+        cell, volt = int(cell), int(volt)
+        if volt > h.max_cell_mv:
+            h.max_cell_mv, h.max_cell_num = volt, cell
+        if volt < h.min_cell_mv:
+            h.min_cell_mv, h.min_cell_num = volt, cell
+        if vstate.lower() != "normal":
+            h.cell_state_counts[vstate] = h.cell_state_counts.get(vstate, 0) + 1
+    if not rows:
+        h.min_cell_mv = 0
+
+    # ---- severity + plain English ----
+    ov = h.bat_events.get("BOV", 0)
+    hv = h.bat_events.get("BHV", 0)
+    uv = h.bat_events.get("BUV", 0)
+    lv = h.bat_events.get("BLV", 0)
+
+    if ov or uv:
+        h.severity = CRITICAL
+    elif hv or lv or h.cell_state_counts:
+        h.severity = NOTABLE
+
+    if h.max_cell_num is not None:
+        tag = " — into high/over-voltage" if h.max_cell_mv >= CELL_HIGH_MV else ""
+        h.details.append(
+            f"Highest cell voltage seen: {h.max_cell_mv} mV (cell {h.max_cell_num}){tag}.")
+    if h.min_cell_num is not None and h.min_cell_mv:
+        h.details.append(
+            f"Lowest cell voltage seen: {h.min_cell_mv} mV (cell {h.min_cell_num}).")
+    for flag in ("BOV", "BHV", "BUV", "BLV"):
+        n = h.bat_events.get(flag, 0)
+        if n:
+            h.details.append(f"{n}× {_BAT_FLAG_LABEL[flag]} ({flag}).")
+    if h.max_pack_mv:
+        h.details.append(f"Highest whole-pack voltage: {h.max_pack_mv / 1000:.2f} V.")
+
+    if ov:
+        h.headline = (f"OVER-VOLTAGE recorded — {ov} cell over-voltage trip(s); "
+                      f"peak cell {h.max_cell_mv} mV.")
+    elif hv:
+        h.headline = (f"High-voltage events recorded — peak cell {h.max_cell_mv} mV "
+                      f"(cell {h.max_cell_num}).")
+    elif uv or lv:
+        h.headline = (f"Under-/low-voltage dominant — peak cell only {h.max_cell_mv} mV; "
+                      f"{uv} under-voltage trip(s).")
+    elif h.item_count:
+        h.headline = f"No voltage-protection events in {h.item_count} stored items."
+    else:
+        h.headline = "No readable events in this history dump."
+    return h
+
+
+def render_history_filehead(h: HistorySummary) -> str:
+    icon = {CRITICAL: "[FAULT]", NOTABLE: "[NOTE]", INFO: "[OK]"}[h.severity]
+    lines = [
+        "# === PLAIN-ENGLISH SUMMARY (auto-generated from the history below) ===",
+        f"# {icon} {h.headline}",
+    ]
+    if h.span_start and h.span_end:
+        lines.append(f"# Window: {h.span_start:%Y-%m-%d %H:%M} -> "
+                     f"{h.span_end:%Y-%m-%d %H:%M} ({h.item_count} stored events)")
+    for d in h.details:
+        lines.append(f"#   - {d}")
+    lines.append("#")
+    return "\n".join(lines) + "\n"
+
+
+def history_summary_to_dict(h: HistorySummary) -> dict:
+    return {
+        "headline": h.headline,
+        "severity": h.severity,
+        "window": (f"{h.span_start:%Y-%m-%d %H:%M} → {h.span_end:%Y-%m-%d %H:%M} "
+                   f"({h.item_count} stored events)" if h.span_start else ""),
+        "event_count": h.item_count,
+        "details": list(h.details),
+        "max_cell_mv": h.max_cell_mv,
+        "max_cell_num": h.max_cell_num,
+        "bat_events": dict(sorted(h.bat_events.items())),
+        # Shape-compatible with the event-log summary so the UI renders both.
+        "counts": dict(sorted(h.bat_events.items())),
+        "critical": [],
+    }

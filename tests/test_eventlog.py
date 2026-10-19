@@ -20,8 +20,11 @@ import unittest
 from pylontech.eventlog import (
     CRITICAL,
     INFO,
+    NOTABLE,
     parse_event_log,
+    render_history_filehead,
     render_summary_filehead,
+    summarise_event_history,
     summarise_event_log,
     summary_to_dict,
 )
@@ -111,6 +114,78 @@ class TestEmpty(unittest.TestCase):
         import json
         s = summarise_event_log(_load("eventlog-faulty.txt"))
         json.dumps(summary_to_dict(s))  # must not raise
+
+
+_HISTORY_SAMPLE = """\
+# === data event history (full) ===
+-----------------------------------------------
+Item Index      : 100
+Time            : 26-08-23 21:07:59
+Voltage         : 51807       mV
+Current         : 5000        mA
+Temperature     : 26300       mC
+Percent         : 99          %
+Max Voltage     : 54000       mV
+Base State      : Charge
+Volt. State     : Normal
+Bat Events      : 0x8        BHV
+System Fault    : 0x0
+-----------------------------------------------
+
+Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  Coulomb
+0        3450     5000     26000    Charge       Normal       Normal       Normal       99%
+1        3650     5000     26000    Charge       High         Normal       Normal       99%
+2        3455     5000     26000    Charge       Normal       Normal       Normal       99%
+-----------------------------------------------
+Item Index      : 50
+Time            : 26-08-21 01:51:11
+Voltage         : 46000       mV
+Current         : -9000       mA
+Temperature     : 25000       mC
+Percent         : 2           %
+Base State      : Dischg
+Volt. State     : Normal
+Bat Events      : 0x10       BUV
+System Fault    : 0x0
+-----------------------------------------------
+
+Battery  Volt     Curr     Tempr    Base State   Volt. State  Curr. State  Temp. State  Coulomb
+0        3100     -9000    25000    Dischg       Normal       Normal       Normal       2%
+1        2400     -9000    25000    Dischg       UV           Normal       Normal       2%
+2        3090     -9000    25000    Dischg       Normal       Normal       Normal       2%
+"""
+
+
+class TestEventHistory(unittest.TestCase):
+    def setUp(self):
+        self.h = summarise_event_history(_HISTORY_SAMPLE)
+
+    def test_counts_items_and_span(self):
+        self.assertEqual(self.h.item_count, 2)
+        self.assertIsNotNone(self.h.span_start)
+
+    def test_finds_peak_and_lowest_cell(self):
+        self.assertEqual(self.h.max_cell_mv, 3650)
+        self.assertEqual(self.h.max_cell_num, 1)
+        self.assertEqual(self.h.min_cell_mv, 2400)
+        self.assertEqual(self.h.min_cell_num, 1)   # same failing cell swings both ways
+
+    def test_bat_event_flags_tallied(self):
+        self.assertEqual(self.h.bat_events.get("BHV"), 1)
+        self.assertEqual(self.h.bat_events.get("BUV"), 1)
+
+    def test_severity_and_headline(self):
+        # BUV present -> critical; peak cell is into high-voltage.
+        self.assertEqual(self.h.severity, CRITICAL)
+        self.assertIn("3650 mV", render_history_filehead(self.h))
+        self.assertIn("high/over-voltage", render_history_filehead(self.h))
+
+    def test_clean_history(self):
+        clean = _HISTORY_SAMPLE.replace("BHV", "").replace("BUV", "") \
+            .replace("High ", "Normal").replace("UV   ", "Normal") \
+            .replace("2400", "3300")
+        h = summarise_event_history(clean)
+        self.assertEqual(h.severity, INFO)
 
 
 if __name__ == "__main__":

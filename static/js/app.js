@@ -77,12 +77,14 @@ function setConnected(yes, port) {
   $('rack-section').classList.toggle('hidden', !yes);
   $('diagnose-section').classList.toggle('hidden', !yes);
   $('eventlog-section').classList.toggle('hidden', !yes);
+  $('rma-section').classList.toggle('hidden', !yes);
   $('console-section').classList.toggle('hidden', !yes);
   syncCerboSectionVisibility();
   if (yes) {
     setStatus(`Connected to ${port}.`, 'connected');
     refreshRack();
     refreshCerboStatus();
+    refreshRmaStatus();
   } else {
     setStatus('Not connected.');
     $('rack-table').querySelector('tbody').innerHTML = '';
@@ -440,6 +442,7 @@ async function pollScanJob(jobId) {
       // Render the summary
       const summary = await api('/api/scan/last');
       renderScanSummary(summary, jobId);
+      refreshRmaStatus();   // failed-pack count may now enable RMA generation
       return;
     }
     if (s.total) {
@@ -848,6 +851,95 @@ async function refreshCrosschecks() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// RMA forms
+// ---------------------------------------------------------------------------
+
+let _rmaProfileFields = [];
+
+async function refreshRmaStatus() {
+  let st;
+  try {
+    st = await api('/api/rma/status');
+  } catch (e) { return; }
+
+  // Build the installer-profile inputs once.
+  const box = $('rma-profile-fields');
+  if (!_rmaProfileFields.length && st.profile_fields) {
+    _rmaProfileFields = st.profile_fields;
+    box.innerHTML = st.profile_fields.map(f => `
+      <label class="rma-field">
+        <span>${escapeHtml(f.label)}</span>
+        <input type="text" id="rma-f-${f.key}" placeholder="${escapeHtml(f.placeholder)}">
+      </label>`).join('');
+  }
+  // Populate with saved values.
+  (st.profile_fields || []).forEach(f => {
+    const el = $(`rma-f-${f.key}`);
+    if (el && st.profile) el.value = st.profile[f.key] || '';
+  });
+
+  // Template-presence guidance.
+  const ts = $('rma-template-status');
+  const missing = [];
+  if (!st.diagnosis_template) missing.push('diagnosis.docx');
+  if (!st.collection_template) missing.push('collection.docx');
+  if (!st.have_docx) {
+    ts.textContent = 'python-docx is not installed — run: pip install python-docx';
+    ts.classList.remove('hidden');
+  } else if (missing.length) {
+    ts.innerHTML = `Drop your Pylontech template file(s) — <strong>${missing.join(', ')}</strong> — into <code>${escapeHtml(st.template_dir)}</code> to enable auto-fill.`;
+    ts.classList.remove('hidden');
+  } else {
+    ts.classList.add('hidden');
+  }
+
+  // Generate button state.
+  const btn = $('btn-rma-generate');
+  const canGen = st.have_docx && (st.diagnosis_template || st.collection_template) && st.failed_packs.length > 0;
+  btn.disabled = !canGen;
+  btn.title = !st.scanned ? 'Run a whole-rack scan first'
+            : !st.failed_packs.length ? 'No FAILED packs to claim'
+            : missing.length === 2 ? 'No templates found' : '';
+}
+
+async function saveRmaProfile() {
+  const data = {};
+  _rmaProfileFields.forEach(f => { data[f.key] = ($(`rma-f-${f.key}`).value || '').trim(); });
+  const saved = $('rma-profile-saved');
+  try {
+    await api('/api/rma/profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    saved.textContent = 'Saved ✓';
+    setTimeout(() => { saved.textContent = ''; }, 2500);
+  } catch (e) {
+    saved.textContent = 'Save failed: ' + e.message;
+  }
+}
+
+async function generateRmaForms() {
+  const result = $('rma-result');
+  result.classList.remove('hidden');
+  result.innerHTML = '<p class="muted">Generating…</p>';
+  try {
+    const r = await api('/api/rma/generate', { method: 'POST' });
+    const links = (r.produced || []).map(w => {
+      const label = w === 'diagnosis' ? 'Diagnosis form' : 'Collection request';
+      return `<a href="/api/rma/download/${w}"><button>Download ${label} (.docx)</button></a>`;
+    }).join(' ');
+    const errs = (r.errors || []).length
+      ? `<p class="status error">${r.errors.map(escapeHtml).join('<br>')}</p>` : '';
+    result.innerHTML = `
+      <p>Forms generated. Review the <em>(confirm on site)</em> fields, sign, and attach your event-log / health reports before sending.</p>
+      <div class="row">${links}</div>${errs}`;
+  } catch (e) {
+    result.innerHTML = `<p class="status error">${escapeHtml(e.message)}</p>`;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   $('btn-refresh').addEventListener('click', refreshPorts);
   $('btn-connect').addEventListener('click', connectClicked);
@@ -864,6 +956,10 @@ document.addEventListener('DOMContentLoaded', () => {
   $('btn-eventlog').addEventListener('click', () => startDump('eventlog'));
   $('btn-eventhistory').addEventListener('click', () => startDump('eventhistory'));
   $('btn-scan').addEventListener('click', startRackScan);
+
+  // RMA forms
+  $('btn-rma-save').addEventListener('click', saveRmaProfile);
+  $('btn-rma-generate').addEventListener('click', generateRmaForms);
 
   // Cerbo controls
   $('btn-cerbo-discover').addEventListener('click', discoverCerbos);

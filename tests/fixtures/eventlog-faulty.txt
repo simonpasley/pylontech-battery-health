@@ -1,7 +1,7 @@
 # Pylontech full event-log dump
 # Captured:        2026-10-19T16:23:54
 # Tool:            pylontech-battery-health
-# Barcode:         H222008C3222FAULT
+# Barcode:         TEST0000C0000002
 # Pack address:    4
 # Model:           US3000C
 # Release date:    21-12-27
@@ -23,7 +23,7 @@ info
 Boot  version       : V1.0
 Comm version        : V2.0
 Release Date        : 21-12-27
-Barcode             : H222008C3222FAULT
+Barcode             : TEST0000C0000002
 
 Specification       : 48V/74AH
 Cell Number         : 15

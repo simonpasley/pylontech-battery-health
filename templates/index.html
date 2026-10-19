@@ -154,9 +154,31 @@
         </div>
     </section>
 
-    <!-- Step 5: Console passthrough -->
+    <!-- Step 5: RMA forms — auto-fill the Pylontech warranty paperwork -->
+    <section class="card hidden" id="rma-section">
+        <h2>5. RMA forms <span class="muted">(auto-fill the Pylontech warranty paperwork)</span></h2>
+        <p class="hint">Fills the official Pylontech <strong>Initial Diagnosis</strong> and <strong>Collection Request</strong> forms from the last whole-rack scan — serial numbers, model, production date, pack voltage and an auto-written fault description (enriched with any event-log dumps you've run this session). Physical-inspection fields are marked <em>(confirm on site)</em> for you to complete.</p>
+
+        <details id="rma-profile-box">
+            <summary>Installer details <span class="muted">(saved on this machine, reused every time)</span></summary>
+            <div id="rma-profile-fields" class="rma-profile-fields"></div>
+            <div class="row">
+                <button id="btn-rma-save" type="button">Save details</button>
+                <span id="rma-profile-saved" class="muted"></span>
+            </div>
+        </details>
+
+        <div id="rma-template-status" class="hint important hidden"></div>
+
+        <div class="row">
+            <button id="btn-rma-generate" type="button">Generate RMA forms</button>
+        </div>
+        <div id="rma-result" class="rma-result hidden"></div>
+    </section>
+
+    <!-- Step 6: Console passthrough -->
     <section class="card console-card hidden" id="console-section">
-        <h2>5. Console passthrough <span class="muted">(advanced)</span></h2>
+        <h2>6. Console passthrough <span class="muted">(advanced)</span></h2>
         <p class="hint">Send a Pylontech native console command directly. Only read-only diagnostic commands are accepted — the server enforces an allowlist (<code>info</code>, <code>pwr</code>, <code>bat</code>, <code>soh</code>, <code>stat</code>, <code>log</code>, <code>data</code>, <code>time</code>, <code>alarm</code>, <code>unit</code>, <code>help</code>, <code>ver</code>, <code>sn</code>, <code>fault</code>). Anything that writes config or controls FETs (<code>config&nbsp;…</code>, <code>ctrl&nbsp;…</code>, <code>factory</code>, <code>reset</code>, <code>shut</code>) is rejected with HTTP 403.</p>
         <div class="row">
             <input id="console-input" type="text" placeholder="e.g. pwr 8" autocomplete="off">
